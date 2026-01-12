@@ -50,7 +50,7 @@ npm run dev
 
 ## 🔐 Authentication
 
-**Test Admin:** Phone `9155682599` | Password `Hello@&1234`
+**Test Admin:** Phone `9999999999` | Password `Hello@&1234`
 
 - **User/Worker:** OTP-based registration with phone verification
 - **Admin:** Phone + Password + OTP (2FA)
