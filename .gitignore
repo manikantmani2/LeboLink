@@ -67,3 +67,6 @@ temp/
 .turbo/
 .vercel
 .eslintcache
+
+# Local documentation (not for GitHub)
+docs/
