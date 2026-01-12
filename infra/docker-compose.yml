@@ -1,0 +1,41 @@
+version: '3.9'
+services:
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: Dockerfile
+    env_file:
+      - ../apps/api/.env
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongo
+      - redis
+
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    env_file:
+      - ../apps/web/.env.local
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+  mongo:
+    image: mongo:6
+    container_name: lebolink-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7
+    container_name: lebolink-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  mongo_data:

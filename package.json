@@ -1,0 +1,23 @@
+{
+  "name": "lebolink-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\" --names \"API,WEB\" --prefix \"[{name}]\" --kill-others-on-exit",
+    "start": "concurrently \"npm run start:api\" \"npm run start:web\" --names \"API,WEB\" --prefix \"[{name}]\" --kill-others-on-exit",
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:api": "npm --workspace apps/api run dev",
+    "start:web": "npm --workspace apps/web run start",
+    "start:api": "npm --workspace apps/api run start",
+    "build:web": "npm --workspace apps/web run build",
+    "build:api": "npm --workspace apps/api run build",
+    "build": "npm run build:api && npm run build:web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
