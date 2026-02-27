@@ -22,8 +22,19 @@ let mongoServer: MongoMemoryServer | null = null;
     ThrottlerModule.forRoot({ ttl: 60, limit: 60 }),
     MongooseModule.forRootAsync({
       useFactory: async () => {
-        const uri = process.env.MONGO_URI;
-        if (uri) return { uri };
+        // Check for production MongoDB URI (Railway uses MONGODB_URI)
+        const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
+        
+        if (uri) {
+          console.log(`[mongo] connecting to production database`);
+          return { uri };
+        }
+        
+        // Only use in-memory MongoDB for local development
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('MONGODB_URI environment variable is required in production');
+        }
+        
         mongoServer = await MongoMemoryServer.create();
         const memUri = mongoServer.getUri('lebolink');
         console.log(`[mongo] using in-memory at ${memUri}`);
