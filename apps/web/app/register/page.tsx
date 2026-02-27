@@ -203,8 +203,8 @@ export default function RegisterPage() {
             </motion.div>
           )}
 
-          {/* Phone Step */}
-          {step === 'phone' && (
+          {/* Email Step */}
+          {step === 'email' && (
             <motion.form onSubmit={handleSendOtp} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
