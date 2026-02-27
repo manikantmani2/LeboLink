@@ -30,7 +30,8 @@ export class AuthService {
     }
   }
 
-  async sendOtp(email: string) {
+  // ====== EMAIL OTP ======
+  async sendEmailOtp(email: string) {
     if (!email) throw new BadRequestException('Email is required to send OTP');
     
     // Validate email format
@@ -40,9 +41,9 @@ export class AuthService {
 
     const code = this.generateCode();
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
-    this.store.set(email, { code, expiresAt });
+    this.store.set(`email_${email}`, { code, expiresAt });
 
-    // Always try to send via email
+    // Try to send via email
     const emailSent = await this.sendVerificationEmail(email, code);
 
     // If email failed in production, throw error; in dev, allow fallback
@@ -50,92 +51,32 @@ export class AuthService {
       throw new BadRequestException('Failed to send verification code. Please check your email address and try again.');
     }
 
-    // Development/Fallback: return dev code for testing
-    this.logger.log(`OTP sent to ${email} - Code: ${code}`);
+    this.logger.log(`Email OTP sent to ${email} - Code: ${code}`);
     return { 
       success: true, 
       email,
-      ...(process.env.NODE_ENV !== 'production' && { devCode: code }) // Only expose devCode in development
+      method: 'email',
+      ...(process.env.NODE_ENV !== 'production' && { devCode: code })
     };
   }
 
-  private async sendVerificationEmail(email: string, code: string): Promise<boolean> {
-    // Try to send via email if transporter is available
-    if (this.emailTransporter) {
-      try {
-        await this.emailTransporter.sendMail({
-          from: process.env.SMTP_FROM || process.env.SMTP_USER,
-          to: email,
-          subject: 'LeboLink Email Verification Code',
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px 8px 0 0; color: white;">
-                <h1 style="margin: 0; font-size: 28px;">LeboLink Verification</h1>
-              </div>
-              <div style="padding: 30px; background: #f9f9f9; border-radius: 0 0 8px 8px;">
-                <p style="color: #333; font-size: 16px; margin: 0 0 20px 0;">Hi there!</p>
-                <p style="color: #333; font-size: 16px; margin: 0 0 20px 0;">We received a request to verify your email address for your LeboLink account.</p>
-                
-                <div style="background: white; padding: 20px; border: 2px solid #667eea; border-radius: 8px; margin: 20px 0; text-align: center;">
-                  <p style="color: #999; font-size: 12px; margin: 0 0 10px 0; text-transform: uppercase;">Your Verification Code</p>
-                  <p style="color: #667eea; font-size: 32px; font-weight: bold; margin: 0; letter-spacing: 2px;">${code}</p>
-                  <p style="color: #999; font-size: 12px; margin: 10px 0 0 0;">This code expires in 15 minutes</p>
-                </div>
-
-                <p style="color: #333; font-size: 14px; margin: 20px 0 0 0;">
-                  <strong>Don't share this code with anyone.</strong> LeboLink will never ask you for this code.
-                </p>
-                <p style="color: #999; font-size: 12px; margin: 20px 0 0 0;">
-                  If you didn't request this verification, you can safely ignore this email.
-                </p>
-                
-                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
-                <p style="color: #999; font-size: 11px; margin: 0; text-align: center;">
-                  © 2026 LeboLink. All rights reserved. | <a href="https://lebolink.com" style="color: #667eea; text-decoration: none;">Visit Website</a>
-                </p>
-              </div>
-            </div>
-          `,
-        });
-        this.logger.log(`OTP email successfully sent to ${email}`);
-        return true;
-      } catch (error: any) {
-        this.logger.error(`Failed to send OTP email to ${email}: ${error.message}`);
-        return false;
-      }
-    }
-
-    // No email transporter available - log for development
-    this.logger.warn(`[DEV] Email transporter not configured. Code for ${email}: ${code}`);
-    return process.env.NODE_ENV !== 'production'; // Allow in development without email
-  }
-
-  private isValidEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  }
-
-  private generateCode(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  }
-
-  async verifyOtp(email: string, otp: string) {
+  async verifyEmailOtp(email: string, otp: string) {
     if (!email || !otp) throw new BadRequestException('Email and OTP required');
-    const entry = this.store.get(email);
+    
+    const entry = this.store.get(`email_${email}`);
     if (!entry) throw new BadRequestException('OTP not requested');
     if (Date.now() > entry.expiresAt) {
-      this.store.delete(email);
+      this.store.delete(`email_${email}`);
       throw new BadRequestException('OTP expired');
     }
     if (entry.code !== otp) throw new BadRequestException('Invalid OTP');
 
-    this.store.delete(email);
+    this.store.delete(`email_${email}`);
     const user = await this.usersService.findOrCreateByEmail(email);
     
     // Check if user has completed profile
     const hasProfile = !!(user.name && user.role);
     
-    // TODO: issue real JWT tied to user/email
     return { 
       success: true, 
       email, 
@@ -145,6 +86,73 @@ export class AuthService {
       role: user.role,
       name: user.name
     };
+  }
+
+  // ====== SMS OTP ======
+  async sendSmsOtp(phone: string) {
+    if (!phone) throw new BadRequestException('Phone is required to send OTP');
+    
+    // Validate phone format (basic)
+    if (!this.isValidPhone(phone)) {
+      throw new BadRequestException('Please provide a valid phone number');
+    }
+
+    const code = this.generateCode();
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+    this.store.set(`phone_${phone}`, { code, expiresAt });
+
+    // Try to send via SMS
+    const smsSent = await this.sendVerificationSms(phone, code);
+
+    // If SMS failed in production, throw error; in dev, allow fallback
+    if (!smsSent && process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('Failed to send verification code to phone. Please try again.');
+    }
+
+    this.logger.log(`SMS OTP sent to ${phone} - Code: ${code}`);
+    return { 
+      success: true, 
+      phone,
+      method: 'sms',
+      ...(process.env.NODE_ENV !== 'production' && { devCode: code })
+    };
+  }
+
+  async verifySmsOtp(phone: string, otp: string) {
+    if (!phone || !otp) throw new BadRequestException('Phone and OTP required');
+    
+    const entry = this.store.get(`phone_${phone}`);
+    if (!entry) throw new BadRequestException('OTP not requested');
+    if (Date.now() > entry.expiresAt) {
+      this.store.delete(`phone_${phone}`);
+      throw new BadRequestException('OTP expired');
+    }
+    if (entry.code !== otp) throw new BadRequestException('Invalid OTP');
+
+    this.store.delete(`phone_${phone}`);
+    const user = await this.usersService.findOrCreateByPhone(phone);
+    
+    // Check if user has completed profile
+    const hasProfile = !!(user.name && user.role);
+    
+    return { 
+      success: true, 
+      phone, 
+      userId: user._id?.toString?.() ?? '', 
+      token: 'jwt-token-placeholder',
+      hasProfile,
+      role: user.role,
+      name: user.name
+    };
+  }
+
+  // ====== LEGACY METHODS (for backward compatibility) ======
+  async sendOtp(email: string) {
+    return this.sendEmailOtp(email);
+  }
+
+  async verifyOtp(email: string, otp: string) {
+    return this.verifyEmailOtp(email, otp);
   }
 
   async adminLogin(email: string, password: string) {
@@ -247,6 +255,93 @@ export class AuthService {
     this.logger.warn(`[DEV] Email transporter not configured. Admin code for ${email}: ${code}`);
     return process.env.NODE_ENV !== 'production'; // Allow in development without email
   }
+
+  private async sendVerificationEmail(email: string, code: string): Promise<boolean> {
+    // Try to send via email if transporter is available
+    if (this.emailTransporter) {
+      try {
+        await this.emailTransporter.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: email,
+          subject: 'LeboLink Email Verification Code',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px 8px 0 0; color: white;">
+                <h1 style="margin: 0; font-size: 28px;">LeboLink Verification</h1>
+              </div>
+              <div style="padding: 30px; background: #f9f9f9; border-radius: 0 0 8px 8px;">
+                <p style="color: #333; font-size: 16px; margin: 0 0 20px 0;">Hi there!</p>
+                <p style="color: #333; font-size: 16px; margin: 0 0 20px 0;">We received a request to verify your email address for your LeboLink account.</p>
+                
+                <div style="background: white; padding: 20px; border: 2px solid #667eea; border-radius: 8px; margin: 20px 0; text-align: center;">
+                  <p style="color: #999; font-size: 12px; margin: 0 0 10px 0; text-transform: uppercase;">Your Verification Code</p>
+                  <p style="color: #667eea; font-size: 32px; font-weight: bold; margin: 0; letter-spacing: 2px;">${code}</p>
+                  <p style="color: #999; font-size: 12px; margin: 10px 0 0 0;">This code expires in 15 minutes</p>
+                </div>
+
+                <p style="color: #333; font-size: 14px; margin: 20px 0 0 0;">
+                  <strong>Don't share this code with anyone.</strong> LeboLink will never ask you for this code.
+                </p>
+                <p style="color: #999; font-size: 12px; margin: 20px 0 0 0;">
+                  If you didn't request this verification, you can safely ignore this email.
+                </p>
+                
+                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+                <p style="color: #999; font-size: 11px; margin: 0; text-align: center;">
+                  © 2026 LeboLink. All rights reserved. | <a href="https://lebolink.com" style="color: #667eea; text-decoration: none;">Visit Website</a>
+                </p>
+              </div>
+            </div>
+          `,
+        });
+        this.logger.log(`Email verification sent to ${email}`);
+        return true;
+      } catch (error: any) {
+        this.logger.error(`Failed to send email to ${email}: ${error.message}`);
+        return false;
+      }
+    }
+
+    this.logger.warn(`[DEV] Email transporter not configured. Code for ${email}: ${code}`);
+    return process.env.NODE_ENV !== 'production';
+  }
+
+  private async sendVerificationSms(phone: string, code: string): Promise<boolean> {
+    // TODO: Integrate with SMS provider (Twilio, AWS SNS, etc.)
+    // For now, use development fallback similar to email
+    
+    // This is where you'd integrate with Twilio or another SMS provider
+    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+      try {
+        // TODO: Send SMS via Twilio
+        // const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+        // await client.messages.create({
+        //   from: process.env.TWILIO_PHONE,
+        //   to: phone,
+        //   body: `Your LeboLink verification code is: ${code}. This code expires in 15 minutes.`
+        // });
+        this.logger.log(`SMS sent to ${phone}`);
+        return true;
+      } catch (error: any) {
+        this.logger.error(`Failed to send SMS to ${phone}: ${error.message}`);
+        return false;
+      }
+    }
+
+    // Development mode: just log the code
+    this.logger.warn(`[DEV] SMS not configured. Code for ${phone}: ${code}`);
+    return process.env.NODE_ENV !== 'production';
+  }
+
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
+
+  private isValidPhone(phone: string): boolean {
+    // Basic phone validation - at least 10 digits
+    const phoneRegex = /^\d{10,}$/;
+    return phoneRegex.test(phone.replace(/[^\d]/g, ''));
   }
 
   async verifyAdminOtp(email: string, otp: string) {
@@ -280,7 +375,7 @@ export class AuthService {
 
   async register(body: {
     name: string;
-    email: string;
+    email?: string;
     phone?: string;
     password: string;
     otp: string;
@@ -290,18 +385,31 @@ export class AuthService {
     preferredLocation?: string;
     nextAvailableDate?: string;
   }) {
-    if (!body.email || !body.otp) throw new BadRequestException('Email and OTP required');
+    // At least one of email or phone is required
+    if (!body.email && !body.phone) {
+      throw new BadRequestException('Email or Phone is required');
+    }
+    if (!body.otp) {
+      throw new BadRequestException('OTP is required');
+    }
 
-    // Verify OTP
-    const entry = this.store.get(body.email);
+    // Verify OTP based on email or phone
+    let verificationKey = '';
+    if (body.email) {
+      verificationKey = `email_${body.email}`;
+    } else if (body.phone) {
+      verificationKey = `phone_${body.phone}`;
+    }
+
+    const entry = this.store.get(verificationKey);
     if (!entry) throw new BadRequestException('OTP not requested');
     if (Date.now() > entry.expiresAt) {
-      this.store.delete(body.email);
+      this.store.delete(verificationKey);
       throw new BadRequestException('OTP expired');
     }
     if (entry.code !== body.otp) throw new BadRequestException('Invalid OTP');
 
-    this.store.delete(body.email);
+    this.store.delete(verificationKey);
 
     // Hash password before storing
     const hashedPassword = await bcrypt.hash(body.password, 10);
@@ -309,10 +417,14 @@ export class AuthService {
     // Prepare user data
     const userData: any = {
       name: body.name,
-      email: body.email,
       password: hashedPassword,
       role: body.role,
     };
+
+    // Add email if provided
+    if (body.email) {
+      userData.email = body.email;
+    }
 
     // Add phone if provided
     if (body.phone) {
@@ -334,29 +446,43 @@ export class AuthService {
       success: true,
       token: 'jwt-token-placeholder',
       userId: user._id?.toString?.() ?? '',
-      email: user.email,
+      email: user.email || null,
       phone: user.phone || null,
       name: user.name,
       role: user.role,
     };
   }
 
-  async passwordLogin(email: string, password: string) {
-    if (!email || !password) throw new BadRequestException('Email and password required');
-    
-    const user = await this.usersService.findByEmail(email);
-    if (!user) throw new BadRequestException('Invalid email or password');
+  async passwordLogin(body: { email?: string; phone?: string; password: string }) {
+    // At least one of email or phone required
+    if (!body.email && !body.phone) {
+      throw new BadRequestException('Email or Phone is required');
+    }
+    if (!body.password) {
+      throw new BadRequestException('Password is required');
+    }
+
+    let user = null;
+
+    // Find user by email or phone
+    if (body.email) {
+      user = await this.usersService.findByEmail(body.email);
+    } else if (body.phone) {
+      user = await this.usersService.findByPhone(body.phone);
+    }
+
+    if (!user) throw new BadRequestException('Invalid credentials');
     if (user.isDeleted) throw new BadRequestException('Account deleted');
     if (user.accountStatus === 'blocked') throw new BadRequestException('Your account is blocked by admin');
     if (user.accountStatus === 'deactivated') throw new BadRequestException('Your account is deactivated by admin');
     
     // Check which password field is used (password or passwordHash)
     const storedPassword = user.password || user.passwordHash;
-    if (!storedPassword) throw new BadRequestException('Invalid email or password');
+    if (!storedPassword) throw new BadRequestException('Invalid credentials');
     
     // Compare plain password with hashed password
-    const isPasswordValid = await bcrypt.compare(password, storedPassword);
-    if (!isPasswordValid) throw new BadRequestException('Invalid email or password');
+    const isPasswordValid = await bcrypt.compare(body.password, storedPassword);
+    if (!isPasswordValid) throw new BadRequestException('Invalid credentials');
     
     // Check if user has completed profile (requires name and role)
     const hasProfile = !!(user.name && user.role);

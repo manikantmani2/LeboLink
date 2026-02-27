@@ -5,20 +5,44 @@ import { AuthService } from './auth.service';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('send-otp')
-  async sendOtp(@Body('email') email: string) {
-    return this.authService.sendOtp(email);
+  // Send OTP via email
+  @Post('send-email-otp')
+  async sendEmailOtp(@Body('email') email: string) {
+    return this.authService.sendEmailOtp(email);
   }
 
+  // Send OTP via SMS to phone
+  @Post('send-sms-otp')
+  async sendSmsOtp(@Body('phone') phone: string) {
+    return this.authService.sendSmsOtp(phone);
+  }
+
+  // Legacy endpoint - accepts either email or phone
+  @Post('send-otp')
+  async sendOtp(@Body() body: { email?: string; phone?: string }) {
+    if (body.email) {
+      return this.authService.sendEmailOtp(body.email);
+    } else if (body.phone) {
+      return this.authService.sendSmsOtp(body.phone);
+    }
+    throw new Error('Email or Phone required');
+  }
+
+  // Verify OTP - accepts either email or phone
   @Post('verify-otp')
-  async verifyOtp(@Body() body: { email: string; otp: string }) {
-    return this.authService.verifyOtp(body.email, body.otp);
+  async verifyOtp(@Body() body: { email?: string; phone?: string; otp: string }) {
+    if (body.email) {
+      return this.authService.verifyEmailOtp(body.email, body.otp);
+    } else if (body.phone) {
+      return this.authService.verifySmsOtp(body.phone, body.otp);
+    }
+    throw new Error('Email or Phone required');
   }
 
   @Post('register')
   async register(@Body() body: {
     name: string;
-    email: string;
+    email?: string;
     phone?: string;
     password: string;
     otp: string;
@@ -31,9 +55,10 @@ export class AuthController {
     return this.authService.register(body);
   }
 
+  // Login with password - accepts either email or phone
   @Post('login')
-  async login(@Body() body: { email: string; password: string }) {
-    return this.authService.passwordLogin(body.email, body.password);
+  async login(@Body() body: { email?: string; phone?: string; password: string }) {
+    return this.authService.passwordLogin(body);
   }
 
   @Post('admin-login')

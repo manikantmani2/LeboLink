@@ -58,6 +58,10 @@ export class UsersService {
     return this.userModel.findOne({ email, isDeleted: { $ne: true } }).lean();
   }
 
+  async findByPhone(phone: string) {
+    return this.userModel.findOne({ phone, isDeleted: { $ne: true } }).lean();
+  }
+
   async findOrCreateByEmail(email: string, role: 'worker' | 'customer' | 'admin' = 'customer') {
     const user = await this.userModel.findOne({ email, isDeleted: { $ne: true } });
     if (user) return user.toObject();
@@ -79,10 +83,31 @@ export class UsersService {
     return createdUser.toObject();
   }
 
+  async findOrCreateByPhone(phone: string, role: 'worker' | 'customer' | 'admin' = 'customer') {
+    const user = await this.userModel.findOne({ phone, isDeleted: { $ne: true } });
+    if (user) return user.toObject();
+
+    const createdUser = await this.userModel.create({
+      phone,
+      role,
+      accountStatus: 'active',
+      isDeleted: false,
+      ...(role === 'worker'
+        ? {
+            workerApproval: {
+              status: 'pending',
+              updatedAt: new Date(),
+            },
+          }
+        : {}),
+    });
+    return createdUser.toObject();
+  }
+
   async registerUser(payload: {
-    phone: string;
+    phone?: string;
+    email?: string;
     name: string;
-    email: string;
     password: string; // This should already be hashed
     role: 'customer' | 'worker';
     jobCategory?: string;
@@ -90,11 +115,22 @@ export class UsersService {
     preferredLocation?: string;
     nextAvailableDate?: string;
   }) {
-    const existing = await this.userModel.findOne({ phone: payload.phone, isDeleted: { $ne: true } });
+    // Check by phone first if provided
+    let existing = null;
+    if (payload.phone) {
+      existing = await this.userModel.findOne({ phone: payload.phone, isDeleted: { $ne: true } });
+    }
+    
+    // Check by email if not found by phone
+    if (!existing && payload.email) {
+      existing = await this.userModel.findOne({ email: payload.email, isDeleted: { $ne: true } });
+    }
+
     if (existing) {
-      existing.name = payload.name ?? existing.name;
-      existing.email = payload.email ?? existing.email;
-      existing.password = payload.password ?? existing.password;
+      if (payload.name) existing.name = payload.name;
+      if (payload.email) existing.email = payload.email;
+      if (payload.phone) existing.phone = payload.phone;
+      if (payload.password) existing.password = payload.password;
       existing.role = payload.role;
       existing.accountStatus = 'active';
       existing.isDeleted = false;
@@ -115,8 +151,8 @@ export class UsersService {
 
     const created = await this.userModel.create({
       phone: payload.phone,
-      name: payload.name,
       email: payload.email,
+      name: payload.name,
       password: payload.password,
       role: payload.role,
       accountStatus: 'active',
