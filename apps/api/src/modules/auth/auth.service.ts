@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import * as nodemailer from 'nodemailer';
+import * as twilio from 'twilio';
 
 type OtpEntry = { code: string; expiresAt: number };
 
@@ -12,6 +13,7 @@ const globalOtpStore = new Map<string, OtpEntry>();
 export class AuthService {
   private store: Map<string, OtpEntry> = globalOtpStore;
   private emailTransporter: nodemailer.Transporter | null = null;
+  private twilioClient: twilio.Twilio | null = null;
   private logger = new Logger('AuthService');
 
   constructor(private readonly usersService: UsersService) {
@@ -27,6 +29,12 @@ export class AuthService {
         },
       });
       this.logger.log('Email service initialized');
+    }
+
+    // Initialize Twilio for SMS
+    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+      this.twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      this.logger.log('Twilio SMS service initialized');
     }
   }
 
@@ -310,20 +318,19 @@ export class AuthService {
   }
 
   private async sendVerificationSms(phone: string, code: string): Promise<boolean> {
-    // TODO: Integrate with SMS provider (Twilio, AWS SNS, etc.)
-    // For now, use development fallback similar to email
-    
-    // This is where you'd integrate with Twilio or another SMS provider
-    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    // Send SMS via Twilio if configured
+    if (this.twilioClient && process.env.TWILIO_PHONE) {
       try {
-        // TODO: Send SMS via Twilio
-        // const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-        // await client.messages.create({
-        //   from: process.env.TWILIO_PHONE,
-        //   to: phone,
-        //   body: `Your LeboLink verification code is: ${code}. This code expires in 15 minutes.`
-        // });
-        this.logger.log(`SMS sent to ${phone}`);
+        // Format phone number for Twilio (add +91 for India)
+        const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+        
+        await this.twilioClient.messages.create({
+          from: process.env.TWILIO_PHONE,
+          to: formattedPhone,
+          body: `Your LeboLink verification code is: ${code}\n\nThis code expires in 15 minutes.\n\nNever share this code with anyone.`
+        });
+        
+        this.logger.log(`SMS successfully sent to ${formattedPhone}`);
         return true;
       } catch (error: any) {
         this.logger.error(`Failed to send SMS to ${phone}: ${error.message}`);
