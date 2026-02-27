@@ -10,9 +10,8 @@ export default function AdminLoginPage() {
   const { login } = useAuth();
   const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
   const [formData, setFormData] = useState({
-    adminId: '',
+    email: '',
     password: '',
-    phone: '',
     otp: '',
   });
   const [loading, setLoading] = useState(false);
@@ -30,9 +29,8 @@ export default function AdminLoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          adminId: formData.adminId,
+          email: formData.email,
           password: formData.password,
-          phone: formData.phone,
         }),
       });
 
@@ -64,7 +62,7 @@ export default function AdminLoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone: formData.phone,
+          email: formData.email,
           otp: formData.otp,
         }),
       });
@@ -78,7 +76,7 @@ export default function AdminLoginPage() {
       // Store auth data
       login(data.token, data.userId, {
         id: data.userId,
-        phone: formData.phone,
+        email: formData.email,
         role: 'admin',
         name: data.name,
       });
@@ -109,7 +107,7 @@ export default function AdminLoginPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Admin Login</h1>
             <p className="text-gray-600 mt-2">
-              {step === 'credentials' ? 'Enter your credentials' : 'Enter OTP sent to your phone'}
+              {step === 'credentials' ? 'Enter your email and password' : 'Enter OTP sent to your email'}
             </p>
           </div>
 
@@ -132,14 +130,14 @@ export default function AdminLoginPage() {
             <form onSubmit={handleCredentialsSubmit} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Admin ID
+                  Email Address
                 </label>
                 <input
-                  type="text"
-                  value={formData.adminId}
-                  onChange={(e) => setFormData({ ...formData, adminId: e.target.value })}
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-brand"
-                  placeholder="admin001"
+                  placeholder="admin@lebolink.com"
                   required
                 />
               </div>
@@ -158,27 +156,12 @@ export default function AdminLoginPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number (for MFA)
-                </label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-brand"
-                  placeholder="0000000000"
-                  required
-                  maxLength={10}
-                />
-              </div>
-
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full bg-gradient-to-r from-brand to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Verifying...' : 'Continue to MFA'}
+                {loading ? 'Verifying...' : 'Continue to Verification'}
               </button>
             </form>
           )}
@@ -188,7 +171,7 @@ export default function AdminLoginPage() {
             <form onSubmit={handleOtpSubmit} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter 6-Digit OTP
+                  Enter 6-Digit OTP sent to {formData.email}
                 </label>
                 <input
                   type="text"
@@ -198,6 +181,43 @@ export default function AdminLoginPage() {
                   placeholder="000000"
                   required
                   maxLength={6}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setStep('credentials'); setFormData({ ...formData, otp: '' }); }}
+                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-all"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || formData.otp.length !== 6}
+                  className="flex-1 bg-gradient-to-r from-brand to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Verifying...' : 'Login'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Footer */}
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => router.push('/')}
+              className="text-sm text-gray-600 hover:text-brand transition-colors"
+            >
+              ← Back to Home
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
                   autoFocus
                 />
               </div>

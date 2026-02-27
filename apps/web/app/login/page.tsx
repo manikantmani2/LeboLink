@@ -15,7 +15,7 @@ function LoginPageContent() {
   const { theme } = useTheme();
   const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
   const [formData, setFormData] = useState({
-    phone: '',
+    email: '',
     password: '',
     otp: '',
   });
@@ -25,19 +25,19 @@ function LoginPageContent() {
   const [useOtpFallback, setUseOtpFallback] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [validationErrors, setValidationErrors] = useState({ phone: '', password: '' });
+  const [validationErrors, setValidationErrors] = useState({ email: '', password: '' });
 
   const currentTheme = theme;
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setValidationErrors({ phone: '', password: '' });
+    setValidationErrors({ email: '', password: '' });
     setLoading(true);
 
     // Validation
-    if (!formData.phone) {
-      setValidationErrors((prev) => ({ ...prev, phone: 'Phone number cannot be blank.' }));
+    if (!formData.email) {
+      setValidationErrors((prev) => ({ ...prev, email: 'Email cannot be blank.' }));
       setLoading(false);
       return;
     }
@@ -53,7 +53,7 @@ function LoginPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone: formData.phone,
+          email: formData.email,
           password: formData.password,
         }),
       });
@@ -66,7 +66,7 @@ function LoginPageContent() {
 
       login(data.token, data.userId, {
         id: data.userId,
-        phone: formData.phone,
+        email: formData.email,
         role: (data.role || 'customer') as 'customer' | 'worker',
         name: data.name,
       });
@@ -93,7 +93,7 @@ function LoginPageContent() {
       const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formData.phone }),
+        body: JSON.stringify({ email: formData.email }),
       });
 
       const data = await response.json();
@@ -122,7 +122,7 @@ function LoginPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone: formData.phone,
+          email: formData.email,
           otp: formData.otp,
         }),
       });
@@ -135,7 +135,7 @@ function LoginPageContent() {
 
       login(data.token, data.userId, {
         id: data.userId,
-        phone: formData.phone,
+        email: formData.email,
         role: (data.role || 'customer') as 'customer' | 'worker',
         name: data.name,
       });
@@ -211,20 +211,19 @@ function LoginPageContent() {
             >
               <div>
                   <input
-                    type="tel"
-                    value={formData.phone}
+                    type="email"
+                    value={formData.email}
                     onChange={(e) => {
-                      setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') });
-                      setValidationErrors((prev) => ({ ...prev, phone: '' }));
+                      setFormData({ ...formData, email: e.target.value });
+                      setValidationErrors((prev) => ({ ...prev, email: '' }));
                     }}
                     className={`w-full px-4 py-3 border ${
-                      validationErrors.phone ? 'border-red-400' : 'border-gray-300/50'
+                      validationErrors.email ? 'border-red-400' : 'border-gray-300/50'
                     } bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 ${theme?.border || 'focus:border-blue-500'} outline-none transition-all border-b-2 border-white/20`}
-                    placeholder="Enter Phone Number *"
-                    maxLength={10}
+                    placeholder="Enter Email Address *"
                   />
-                  {validationErrors.phone && (
-                    <p className="text-red-500 text-xs mt-1">{validationErrors.phone}</p>
+                  {validationErrors.email && (
+                    <p className="text-red-500 text-xs mt-1">{validationErrors.email}</p>
                   )}
                 </div>
 
@@ -315,20 +314,16 @@ function LoginPageContent() {
               >
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Phone Number
+                    Email Address
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">+91</span>
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
-                      className={`w-full pl-14 pr-4 py-2 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2`}
-                      placeholder="10-digit number"
-                      required
-                      maxLength={10}
-                    />
-                  </div>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className={`w-full px-4 py-2 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2`}
+                    placeholder="your.email@example.com"
+                    required
+                  />
                 </div>
 
                 <motion.button
@@ -361,7 +356,7 @@ function LoginPageContent() {
               >
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
-                    Enter 6-Digit OTP sent to +91 {formData.phone}
+                    Enter 6-Digit OTP sent to {formData.email}
                   </label>
                   <input
                     type="text"

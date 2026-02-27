@@ -6,13 +6,13 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('send-otp')
-  async sendOtp(@Body('phone') phone: string) {
-    return this.authService.sendOtp(phone);
+  async sendOtp(@Body('email') email: string) {
+    return this.authService.sendOtp(email);
   }
 
   @Post('verify-otp')
-  async verifyOtp(@Body() body: { phone: string; otp: string }) {
-    return this.authService.verifyOtp(body.phone, body.otp);
+  async verifyOtp(@Body() body: { email: string; otp: string }) {
+    return this.authService.verifyOtp(body.email, body.otp);
   }
 
   @Post('register')
@@ -32,17 +32,17 @@ export class AuthController {
   }
 
   @Post('login')
-  async login(@Body() body: { phone: string; password: string }) {
-    return this.authService.passwordLogin(body.phone, body.password);
+  async login(@Body() body: { email: string; password: string }) {
+    return this.authService.passwordLogin(body.email, body.password);
   }
 
   @Post('admin-login')
-  async adminLogin(@Body() body: { password: string; phone: string }) {
-    return this.authService.adminLogin(body.password, body.phone);
+  async adminLogin(@Body() body: { email: string; password: string }) {
+    return this.authService.adminLogin(body.email, body.password);
   }
 
   @Post('admin-verify-otp')
-  async adminVerifyOtp(@Body() body: { phone: string; otp: string }) {
-    return this.authService.verifyAdminOtp(body.phone, body.otp);
+  async adminVerifyOtp(@Body() body: { email: string; otp: string }) {
+    return this.authService.verifyAdminOtp(body.email, body.otp);
   }
 }

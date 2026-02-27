@@ -62,12 +62,37 @@ export class UsersService {
     return this.userModel.findOne({ phone, isDeleted: { $ne: true } }).lean();
   }
 
+  async findByEmail(email: string) {
+    return this.userModel.findOne({ email, isDeleted: { $ne: true } }).lean();
+  }
+
   async findOrCreateByPhone(phone: string, role: 'worker' | 'customer' | 'admin' = 'worker') {
     const user = await this.userModel.findOne({ phone, isDeleted: { $ne: true } });
     if (user) return user.toObject();
 
     const createdUser = await this.userModel.create({
       phone,
+      role,
+      accountStatus: 'active',
+      isDeleted: false,
+      ...(role === 'worker'
+        ? {
+            workerApproval: {
+              status: 'pending',
+              updatedAt: new Date(),
+            },
+          }
+        : {}),
+    });
+    return createdUser.toObject();
+  }
+
+  async findOrCreateByEmail(email: string, role: 'worker' | 'customer' | 'admin' = 'customer') {
+    const user = await this.userModel.findOne({ email, isDeleted: { $ne: true } });
+    if (user) return user.toObject();
+
+    const createdUser = await this.userModel.create({
+      email,
       role,
       accountStatus: 'active',
       isDeleted: false,
@@ -191,13 +216,13 @@ export class UsersService {
   }
 
   async createAdmin(payload: {
-    phone: string;
+    email: string;
     name: string;
     role: 'admin';
     passwordHash: string;
   }) {
     const existing = await this.userModel.findOne({ 
-      phone: payload.phone,
+      email: payload.email,
       isDeleted: { $ne: true },
     });
     
@@ -207,7 +232,7 @@ export class UsersService {
     }
 
     const created = await this.userModel.create({
-      phone: payload.phone,
+      email: payload.email,
       name: payload.name,
       role: payload.role,
       passwordHash: payload.passwordHash,

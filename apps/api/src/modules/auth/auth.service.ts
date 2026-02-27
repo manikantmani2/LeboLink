@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
-import * as twilio from 'twilio';
+import * as nodemailer from 'nodemailer';
 
 type OtpEntry = { code: string; expiresAt: number };
 
@@ -11,78 +11,94 @@ const globalOtpStore = new Map<string, OtpEntry>();
 @Injectable()
 export class AuthService {
   private store: Map<string, OtpEntry> = globalOtpStore;
-  private twilioClient: twilio.Twilio | null = null;
+  private emailTransporter: nodemailer.Transporter | null = null;
   private logger = new Logger('AuthService');
 
   constructor(private readonly usersService: UsersService) {
-    // Initialize Twilio client if credentials are provided
-    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
-      this.twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-      this.logger.log('Twilio SMS service initialized');
+    // Initialize email transporter for production
+    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD) {
+      this.emailTransporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASSWORD,
+        },
+      });
+      this.logger.log('Email service initialized');
     }
   }
 
-  async sendOtp(phone: string) {
-    if (!phone) throw new BadRequestException('Phone required');
+  async sendOtp(email: string) {
+    if (!email) throw new BadRequestException('Email required');
+    
+    // Validate email format
+    if (!this.isValidEmail(email)) {
+      throw new BadRequestException('Invalid email format');
+    }
+
     const code = this.generateCode();
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
-    this.store.set(phone, { code, expiresAt });
+    this.store.set(email, { code, expiresAt });
 
-    // Try to send via Twilio in production
-    if (process.env.NODE_ENV === 'production' && this.twilioClient) {
+    // Try to send via email in production
+    if (process.env.NODE_ENV === 'production' && this.emailTransporter) {
       try {
-        await this.twilioClient.messages.create({
-          body: `Your LeboLink OTP is: ${code}\n\nValid for 15 minutes. Do not share this code.`,
-          from: process.env.TWILIO_PHONE_NUMBER,
-          to: this.formatPhoneNumber(phone),
+        await this.emailTransporter.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: email,
+          subject: 'LeboLink Verification Code',
+          html: `
+            <h2>Your LeboLink Verification Code</h2>
+            <p>Enter this code to verify your email:</p>
+            <h1 style="color: #007bff; font-size: 32px; letter-spacing: 2px;">${code}</h1>
+            <p>This code expires in 15 minutes.</p>
+            <p>If you didn't request this code, please ignore this email.</p>
+          `,
         });
-        this.logger.log(`OTP sent to ${phone} via SMS`);
-        return { success: true, phone };
+        this.logger.log(`OTP sent to ${email} via email`);
+        return { success: true, email };
       } catch (error) {
-        this.logger.error(`Failed to send OTP via Twilio: ${error.message}`);
-        throw new BadRequestException('Failed to send OTP. Please try again later.');
+        this.logger.error(`Failed to send OTP via email: ${error.message}`);
+        throw new BadRequestException('Failed to send verification code. Please try again later.');
       }
     }
 
     // Development fallback: log OTP to console
-    this.logger.warn(`[DEV] OTP for ${phone}: ${code}`);
-    return { success: true, phone, devCode: code };
+    this.logger.warn(`[DEV] OTP for ${email}: ${code}`);
+    return { success: true, email, devCode: code };
   }
 
-  private formatPhoneNumber(phone: string): string {
-    // Remove any non-digit characters
-    const cleaned = phone.replace(/\D/g, '');
-    // Add country code if not present (assumes +1 for US, adjust as needed)
-    if (cleaned.length === 10) return `+1${cleaned}`;
-    if (cleaned.length === 11 && cleaned[0] === '1') return `+${cleaned}`;
-    if (!cleaned.startsWith('+')) return `+${cleaned}`;
-    return cleaned;
+  private isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
   }
 
   private generateCode(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
-  async verifyOtp(phone: string, otp: string) {
-    if (!phone || !otp) throw new BadRequestException('Phone and OTP required');
-    const entry = this.store.get(phone);
+  async verifyOtp(email: string, otp: string) {
+    if (!email || !otp) throw new BadRequestException('Email and OTP required');
+    const entry = this.store.get(email);
     if (!entry) throw new BadRequestException('OTP not requested');
     if (Date.now() > entry.expiresAt) {
-      this.store.delete(phone);
+      this.store.delete(email);
       throw new BadRequestException('OTP expired');
     }
     if (entry.code !== otp) throw new BadRequestException('Invalid OTP');
 
-    this.store.delete(phone);
-    const user = await this.usersService.findOrCreateByPhone(phone);
+    this.store.delete(email);
+    const user = await this.usersService.findOrCreateByEmail(email);
     
     // Check if user has completed profile
     const hasProfile = !!(user.name && user.role);
     
-    // TODO: issue real JWT tied to user/phone
+    // TODO: issue real JWT tied to user/email
     return { 
       success: true, 
-      phone, 
+      email, 
       userId: user._id?.toString?.() ?? '', 
       token: 'jwt-token-placeholder',
       hasProfile,
@@ -91,13 +107,13 @@ export class AuthService {
     };
   }
 
-  async adminLogin(password: string, phone: string) {
-    if (!password || !phone) {
-      throw new BadRequestException('Phone and password required');
+  async adminLogin(email: string, password: string) {
+    if (!email || !password) {
+      throw new BadRequestException('Email and password required');
     }
 
-    // Find admin user by phone
-    const admin = await this.usersService.findByPhone(phone);
+    // Find admin user by email
+    const admin = await this.usersService.findByEmail(email);
     if (!admin || admin.role !== 'admin') {
       throw new BadRequestException('Invalid admin credentials');
     }
@@ -118,65 +134,72 @@ export class AuthService {
       throw new BadRequestException('Invalid admin credentials');
     }
 
-    // Send OTP for MFA
+    // Send OTP for MFA verification via email
     const code = this.generateCode();
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
-    this.store.set(`admin_${phone}`, { code, expiresAt });
+    this.store.set(`admin_${email}`, { code, expiresAt });
 
-    // Try to send via Twilio in production
-    if (process.env.NODE_ENV === 'production' && this.twilioClient) {
+    // Try to send via email in production
+    if (process.env.NODE_ENV === 'production' && this.emailTransporter) {
       try {
-        await this.twilioClient.messages.create({
-          body: `Your LeboLink Admin OTP is: ${code}\n\nValid for 15 minutes. Do not share this code.`,
-          from: process.env.TWILIO_PHONE_NUMBER,
-          to: this.formatPhoneNumber(phone),
+        await this.emailTransporter.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: email,
+          subject: 'LeboLink Admin Verification Code',
+          html: `
+            <h2>Admin Login Verification</h2>
+            <p>Enter this code to verify your admin login:</p>
+            <h1 style="color: #dc3545; font-size: 32px; letter-spacing: 2px;">${code}</h1>
+            <p>This code expires in 15 minutes.</p>
+            <p>If you didn't request this code, please contact your administrator.</p>
+          `,
         });
-        this.logger.log(`Admin OTP sent to ${phone} via SMS`);
+        this.logger.log(`Admin verification email sent to ${email}`);
         return { 
           success: true, 
-          message: 'OTP sent to admin phone',
-          phone,
+          message: 'Verification code sent to admin email',
+          email,
           requiresOtp: true
         };
       } catch (error) {
-        this.logger.error(`Failed to send admin OTP via Twilio: ${error.message}`);
-        throw new BadRequestException('Failed to send OTP. Please try again later.');
+        this.logger.error(`Failed to send admin OTP via email: ${error.message}`);
+        throw new BadRequestException('Failed to send verification code. Please try again later.');
       }
     }
 
     // Development fallback: log OTP to console
-    this.logger.warn(`[DEV] Admin OTP for ${phone}: ${code}`);
+    this.logger.warn(`[DEV] Admin OTP for ${email}: ${code}`);
     return { 
       success: true, 
-      message: 'OTP sent to admin phone',
-      phone,
+      message: 'Verification code sent to admin email',
+      email,
       requiresOtp: true,
       devCode: code 
     };
   }
 
-  async verifyAdminOtp(phone: string, otp: string) {
-    if (!phone || !otp) throw new BadRequestException('Phone and OTP required');
+  async verifyAdminOtp(email: string, otp: string) {
+    if (!email || !otp) throw new BadRequestException('Email and OTP required');
     
-    const entry = this.store.get(`admin_${phone}`);
+    const entry = this.store.get(`admin_${email}`);
     if (!entry) throw new BadRequestException('OTP not requested or admin login not initiated');
     if (Date.now() > entry.expiresAt) {
-      this.store.delete(`admin_${phone}`);
+      this.store.delete(`admin_${email}`);
       throw new BadRequestException('OTP expired');
     }
     if (entry.code !== otp) throw new BadRequestException('Invalid OTP');
 
-    this.store.delete(`admin_${phone}`);
+    this.store.delete(`admin_${email}`);
     
-    // Find admin by phone
-    const admin = await this.usersService.findByPhone(phone);
+    // Find admin by email
+    const admin = await this.usersService.findByEmail(email);
     if (!admin || admin.role !== 'admin') {
       throw new BadRequestException('Admin not found');
     }
 
     return { 
       success: true, 
-      phone, 
+      email, 
       userId: admin._id?.toString?.() ?? '', 
       token: 'jwt-admin-token-placeholder',
       role: 'admin',
@@ -196,18 +219,18 @@ export class AuthService {
     preferredLocation?: string;
     nextAvailableDate?: string;
   }) {
-    if (!body.phone || !body.otp) throw new BadRequestException('Phone and OTP required');
+    if (!body.email || !body.otp) throw new BadRequestException('Email and OTP required');
 
     // Verify OTP
-    const entry = this.store.get(body.phone);
+    const entry = this.store.get(body.email);
     if (!entry) throw new BadRequestException('OTP not requested');
     if (Date.now() > entry.expiresAt) {
-      this.store.delete(body.phone);
+      this.store.delete(body.email);
       throw new BadRequestException('OTP expired');
     }
     if (entry.code !== body.otp) throw new BadRequestException('Invalid OTP');
 
-    this.store.delete(body.phone);
+    this.store.delete(body.email);
 
     // Hash password before storing
     const hashedPassword = await bcrypt.hash(body.password, 10);
@@ -236,29 +259,29 @@ export class AuthService {
       success: true,
       token: 'jwt-token-placeholder',
       userId: user._id?.toString?.() ?? '',
-      phone: user.phone,
       email: user.email,
+      phone: user.phone,
       name: user.name,
       role: user.role,
     };
   }
 
-  async passwordLogin(phone: string, password: string) {
-    if (!phone || !password) throw new BadRequestException('Phone and password required');
+  async passwordLogin(email: string, password: string) {
+    if (!email || !password) throw new BadRequestException('Email and password required');
     
-    const user = await this.usersService.findByPhone(phone);
-    if (!user) throw new BadRequestException('Invalid phone or password');
+    const user = await this.usersService.findByEmail(email);
+    if (!user) throw new BadRequestException('Invalid email or password');
     if (user.isDeleted) throw new BadRequestException('Account deleted');
     if (user.accountStatus === 'blocked') throw new BadRequestException('Your account is blocked by admin');
     if (user.accountStatus === 'deactivated') throw new BadRequestException('Your account is deactivated by admin');
     
     // Check which password field is used (password or passwordHash)
     const storedPassword = user.password || user.passwordHash;
-    if (!storedPassword) throw new BadRequestException('Invalid phone or password');
+    if (!storedPassword) throw new BadRequestException('Invalid email or password');
     
     // Compare plain password with hashed password
     const isPasswordValid = await bcrypt.compare(password, storedPassword);
-    if (!isPasswordValid) throw new BadRequestException('Invalid phone or password');
+    if (!isPasswordValid) throw new BadRequestException('Invalid email or password');
     
     // Check if user has completed profile (requires name and role)
     const hasProfile = !!(user.name && user.role);
@@ -273,8 +296,8 @@ export class AuthService {
     
     return {
       success: true,
-      phone: user.phone,
       email: user.email,
+      phone: user.phone,
       userId: user._id?.toString?.() ?? '',
       token: 'jwt-token-placeholder',
       hasProfile,

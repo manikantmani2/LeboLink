@@ -13,19 +13,18 @@ export class SeedService implements OnModuleInit {
       const hashedPassword123 = await bcrypt.hash('Test@1234', 10);
 
       // Create admin user
-      const adminExists = await this.userModel.findOne({ phone: '9155682599' });
+      const adminExists = await this.userModel.findOne({ email: 'admin@lebolink.com' });
       if (!adminExists) {
         const hashedAdminPassword = await bcrypt.hash('Hello@&1234', 10);
         await this.userModel.create({
-          phone: '9155682599',
-          name: 'Admin User',
           email: 'admin@lebolink.com',
+          name: 'Admin User',
           role: 'admin',
           passwordHash: hashedAdminPassword,
         });
         console.log('✓ Admin user created');
         console.log('[SEED] Admin credentials:');
-        console.log('  Phone: 9155682599');
+        console.log('  Email: admin@lebolink.com');
         console.log('  Password: Hello@&1234');
       }
 
@@ -143,7 +142,7 @@ export class SeedService implements OnModuleInit {
       console.log('┣─ CUSTOMERS (Password: Test@1234)');
       customers.forEach(c => console.log(`┃  Phone: ${c.phone} (${c.name})`));
       console.log('┗─ ADMIN (Password: Hello@&1234)');
-      console.log('   Phone: 9155682599 (Admin User)\n');
+      console.log('   Email: admin@lebolink.com (Admin User)\n');
 
     } catch (error) {
       console.error('Error during seeding:', error);
