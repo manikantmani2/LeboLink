@@ -92,18 +92,24 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      
       const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email }),
       });
 
-      if (!response.ok) throw new Error('Failed to send OTP');
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send verification code');
+      }
+
       setDevOtp(data.devCode || data.otp);
       setStep('otp');
     } catch (err: any) {
-      setError(err.message);
+      console.error('OTP Send Error:', err);
+      setError(err.message || 'Failed to send verification code. Please check your email address and try again.');
     } finally {
       setLoading(false);
     }

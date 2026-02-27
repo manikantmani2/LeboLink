@@ -99,13 +99,14 @@ function LoginPageContent() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to send OTP');
+        throw new Error(data.message || 'Failed to send verification code');
       }
 
       setDevOtp(data.devCode || '');
       setStep('otp');
     } catch (err: any) {
-      setError(err.message || 'Failed to send OTP');
+      console.error('OTP Send Error:', err);
+      setError(err.message || 'Failed to send verification code. Please check your email address and try again.');
     } finally {
       setLoading(false);
     }

@@ -31,43 +31,83 @@ export class AuthService {
   }
 
   async sendOtp(email: string) {
-    if (!email) throw new BadRequestException('Email required');
+    if (!email) throw new BadRequestException('Email is required to send OTP');
     
     // Validate email format
     if (!this.isValidEmail(email)) {
-      throw new BadRequestException('Invalid email format');
+      throw new BadRequestException('Please provide a valid email address');
     }
 
     const code = this.generateCode();
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
     this.store.set(email, { code, expiresAt });
 
-    // Try to send via email in production
-    if (process.env.NODE_ENV === 'production' && this.emailTransporter) {
+    // Always try to send via email
+    const emailSent = await this.sendVerificationEmail(email, code);
+
+    // If email failed in production, throw error; in dev, allow fallback
+    if (!emailSent && process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('Failed to send verification code. Please check your email address and try again.');
+    }
+
+    // Development/Fallback: return dev code for testing
+    this.logger.log(`OTP sent to ${email} - Code: ${code}`);
+    return { 
+      success: true, 
+      email,
+      ...(process.env.NODE_ENV !== 'production' && { devCode: code }) // Only expose devCode in development
+    };
+  }
+
+  private async sendVerificationEmail(email: string, code: string): Promise<boolean> {
+    // Try to send via email if transporter is available
+    if (this.emailTransporter) {
       try {
         await this.emailTransporter.sendMail({
           from: process.env.SMTP_FROM || process.env.SMTP_USER,
           to: email,
-          subject: 'LeboLink Verification Code',
+          subject: 'LeboLink Email Verification Code',
           html: `
-            <h2>Your LeboLink Verification Code</h2>
-            <p>Enter this code to verify your email:</p>
-            <h1 style="color: #007bff; font-size: 32px; letter-spacing: 2px;">${code}</h1>
-            <p>This code expires in 15 minutes.</p>
-            <p>If you didn't request this code, please ignore this email.</p>
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px 8px 0 0; color: white;">
+                <h1 style="margin: 0; font-size: 28px;">LeboLink Verification</h1>
+              </div>
+              <div style="padding: 30px; background: #f9f9f9; border-radius: 0 0 8px 8px;">
+                <p style="color: #333; font-size: 16px; margin: 0 0 20px 0;">Hi there!</p>
+                <p style="color: #333; font-size: 16px; margin: 0 0 20px 0;">We received a request to verify your email address for your LeboLink account.</p>
+                
+                <div style="background: white; padding: 20px; border: 2px solid #667eea; border-radius: 8px; margin: 20px 0; text-align: center;">
+                  <p style="color: #999; font-size: 12px; margin: 0 0 10px 0; text-transform: uppercase;">Your Verification Code</p>
+                  <p style="color: #667eea; font-size: 32px; font-weight: bold; margin: 0; letter-spacing: 2px;">${code}</p>
+                  <p style="color: #999; font-size: 12px; margin: 10px 0 0 0;">This code expires in 15 minutes</p>
+                </div>
+
+                <p style="color: #333; font-size: 14px; margin: 20px 0 0 0;">
+                  <strong>Don't share this code with anyone.</strong> LeboLink will never ask you for this code.
+                </p>
+                <p style="color: #999; font-size: 12px; margin: 20px 0 0 0;">
+                  If you didn't request this verification, you can safely ignore this email.
+                </p>
+                
+                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+                <p style="color: #999; font-size: 11px; margin: 0; text-align: center;">
+                  © 2026 LeboLink. All rights reserved. | <a href="https://lebolink.com" style="color: #667eea; text-decoration: none;">Visit Website</a>
+                </p>
+              </div>
+            </div>
           `,
         });
-        this.logger.log(`OTP sent to ${email} via email`);
-        return { success: true, email };
-      } catch (error) {
-        this.logger.error(`Failed to send OTP via email: ${error.message}`);
-        throw new BadRequestException('Failed to send verification code. Please try again later.');
+        this.logger.log(`OTP email successfully sent to ${email}`);
+        return true;
+      } catch (error: any) {
+        this.logger.error(`Failed to send OTP email to ${email}: ${error.message}`);
+        return false;
       }
     }
 
-    // Development fallback: log OTP to console
-    this.logger.warn(`[DEV] OTP for ${email}: ${code}`);
-    return { success: true, email, devCode: code };
+    // No email transporter available - log for development
+    this.logger.warn(`[DEV] Email transporter not configured. Code for ${email}: ${code}`);
+    return process.env.NODE_ENV !== 'production'; // Allow in development without email
   }
 
   private isValidEmail(email: string): boolean {
@@ -134,48 +174,79 @@ export class AuthService {
       throw new BadRequestException('Invalid admin credentials');
     }
 
-    // Send OTP for MFA verification via email
+    // Send OTP for email verification
     const code = this.generateCode();
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
     this.store.set(`admin_${email}`, { code, expiresAt });
 
-    // Try to send via email in production
-    if (process.env.NODE_ENV === 'production' && this.emailTransporter) {
-      try {
-        await this.emailTransporter.sendMail({
-          from: process.env.SMTP_FROM || process.env.SMTP_USER,
-          to: email,
-          subject: 'LeboLink Admin Verification Code',
-          html: `
-            <h2>Admin Login Verification</h2>
-            <p>Enter this code to verify your admin login:</p>
-            <h1 style="color: #dc3545; font-size: 32px; letter-spacing: 2px;">${code}</h1>
-            <p>This code expires in 15 minutes.</p>
-            <p>If you didn't request this code, please contact your administrator.</p>
-          `,
-        });
-        this.logger.log(`Admin verification email sent to ${email}`);
-        return { 
-          success: true, 
-          message: 'Verification code sent to admin email',
-          email,
-          requiresOtp: true
-        };
-      } catch (error) {
-        this.logger.error(`Failed to send admin OTP via email: ${error.message}`);
-        throw new BadRequestException('Failed to send verification code. Please try again later.');
-      }
+    // Send admin verification email
+    const emailSent = await this.sendAdminVerificationEmail(email, code);
+
+    // If email failed in production, throw error; in dev, allow fallback
+    if (!emailSent && process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('Failed to send verification code. Please check your email and try again.');
     }
 
-    // Development fallback: log OTP to console
-    this.logger.warn(`[DEV] Admin OTP for ${email}: ${code}`);
+    // Development/Fallback: return dev code for testing
+    this.logger.log(`Admin verification code sent to ${email} - Code: ${code}`);
     return { 
       success: true, 
       message: 'Verification code sent to admin email',
       email,
       requiresOtp: true,
-      devCode: code 
+      ...(process.env.NODE_ENV !== 'production' && { devCode: code })
     };
+  }
+
+  private async sendAdminVerificationEmail(email: string, code: string): Promise<boolean> {
+    // Try to send via email if transporter is available
+    if (this.emailTransporter) {
+      try {
+        await this.emailTransporter.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: email,
+          subject: 'LeboLink Admin Verification Code - Security Alert',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <div style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); padding: 20px; border-radius: 8px 8px 0 0; color: white;">
+                <h1 style="margin: 0; font-size: 28px;">🔐 Admin Verification Required</h1>
+              </div>
+              <div style="padding: 30px; background: #f9f9f9; border-radius: 0 0 8px 8px;">
+                <p style="color: #333; font-size: 16px; margin: 0 0 20px 0;">An admin login attempt was made on your LeboLink account.</p>
+                
+                <div style="background: white; padding: 20px; border: 2px solid #dc3545; border-radius: 8px; margin: 20px 0; text-align: center;">
+                  <p style="color: #999; font-size: 12px; margin: 0 0 10px 0; text-transform: uppercase;">Verification Code</p>
+                  <p style="color: #dc3545; font-size: 32px; font-weight: bold; margin: 0; letter-spacing: 2px;">${code}</p>
+                  <p style="color: #999; font-size: 12px; margin: 10px 0 0 0;">This code expires in 15 minutes</p>
+                </div>
+
+                <p style="color: #333; font-size: 14px; margin: 20px 0 0 0;">
+                  <strong>⚠️ Security Notice:</strong> Never share this code with anyone. LeboLink staff will never ask for this code.
+                </p>
+                <p style="color: #999; font-size: 12px; margin: 20px 0 0 0;">
+                  If you didn't attempt to login, please change your password immediately and contact support.
+                </p>
+                
+                <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+                <p style="color: #999; font-size: 11px; margin: 0; text-align: center;">
+                  © 2026 LeboLink. All rights reserved.
+                </p>
+              </div>
+            </div>
+          `,
+        });
+        this.logger.log(`Admin verification email successfully sent to ${email}`);
+        return true;
+      } catch (error: any) {
+        this.logger.error(`Failed to send admin verification email to ${email}: ${error.message}`);
+        return false;
+      }
+    }
+
+    // No email transporter available - log for development
+    this.logger.warn(`[DEV] Email transporter not configured. Admin code for ${email}: ${code}`);
+    return process.env.NODE_ENV !== 'production'; // Allow in development without email
+  }
   }
 
   async verifyAdminOtp(email: string, otp: string) {
