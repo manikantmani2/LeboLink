@@ -43,7 +43,8 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/v1/auth/send-otp', {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: formData.phone }),
@@ -68,21 +69,9 @@ export default function RegisterPage() {
       return;
     }
 
-    setLoading(true);
-    try {
-      const response = await fetch('http://localhost:3001/api/v1/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formData.phone, otp: formData.otp }),
-      });
-
-      if (!response.ok) throw new Error('Invalid OTP');
-      setStep('profile');
-    } catch (err: any) {
-      setError(err.message || 'Invalid OTP');
-    } finally {
-      setLoading(false);
-    }
+    // Skip backend verification - the final registration will verify OTP
+    // This prevents OTP from being deleted before registration completes
+    setStep('profile');
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -128,7 +117,8 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/v1/auth/register', {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiBase}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

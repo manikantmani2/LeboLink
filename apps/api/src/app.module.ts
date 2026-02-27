@@ -13,54 +13,8 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { SystemModule } from './modules/system/system.module';
 import { AdminModule } from './modules/admin/admin.module';
-import { UsersService } from './modules/users/users.service';
 
 let mongoServer: MongoMemoryServer | null = null;
-
-@Injectable()
-class StartupSeed implements OnModuleInit {
-  constructor(private readonly usersService: UsersService) {}
-
-  async onModuleInit() {
-    const existing = await this.usersService.findById('seed-check').catch(() => null);
-    if (existing) return;
-    
-    // Create admin user with proper credentials
-    const bcrypt = await import('bcrypt');
-    const hashedPassword = await bcrypt.hash('Hello@&1234', 10);
-    
-    await this.usersService.createAdmin({
-      phone: '9155682599',
-      name: 'Manikant Sharma',
-      role: 'admin',
-      passwordHash: hashedPassword,
-    });
-    
-    // Create worker users
-    await this.usersService.registerWorker({
-      phone: '9999990001',
-      name: 'Amit Sharma',
-      skills: ['electrician'],
-      kyc: { idType: 'AADHAAR', idNumber: 'XXXX-XXXX-0001' },
-    });
-    await this.usersService.registerWorker({
-      phone: '9999990002',
-      name: 'Priya Verma',
-      skills: ['cleaner'],
-      kyc: { idType: 'PAN', idNumber: 'XXXXX0002X' },
-    });
-    await this.usersService.registerWorker({
-      phone: '9999990003',
-      name: 'Rahul Singh',
-      skills: ['plumber'],
-      kyc: { idType: 'DL', idNumber: 'DL0003' },
-    });
-    
-    console.log('[SEED] Admin credentials:');
-    console.log('  Phone: 9155682599');
-    console.log('  Password: Hello@&1234');
-  }
-}
 
 @Module({
   imports: [
@@ -89,7 +43,6 @@ class StartupSeed implements OnModuleInit {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
-    StartupSeed,
   ],
 })
 export class AppModule implements OnModuleDestroy {

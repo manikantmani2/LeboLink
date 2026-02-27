@@ -33,50 +33,14 @@ export default function WorkerJobsPage() {
     queryKey: ['worker-jobs', user?.id],
     queryFn: () =>
       apiFetch<WorkerJobsResponse>({
-        path: '/api/v1/bookings/worker-jobs',
+        path: `/api/v1/bookings/worker-jobs${user?.id ? `?workerId=${user.id}` : ''}`,
         method: 'GET',
       }),
     refetchInterval: 5000,
+    enabled: !!user?.id,
   });
 
-  const mockJobs: WorkerJobsResponse = {
-    jobs: [
-      {
-        id: '1',
-        title: 'Electrical wiring',
-        customer: 'Rajesh Kumar',
-        price: '₹500',
-        status: 'in-progress',
-        scheduledTime: 'Today, 2:30 PM',
-        address: '123 Main Street, Delhi',
-        phone: '98765 43210',
-      },
-      {
-        id: '2',
-        title: 'Plumbing repair',
-        customer: 'Priya Singh',
-        price: '₹400',
-        status: 'accepted',
-        scheduledTime: 'Tomorrow, 10:00 AM',
-        address: '456 Park Road, Gurgaon',
-        phone: '87654 32109',
-      },
-      {
-        id: '3',
-        title: 'House cleaning',
-        customer: 'Amit Patel',
-        price: '₹300',
-        status: 'completed',
-        scheduledTime: 'Yesterday, 3:00 PM',
-        address: '789 Oak Avenue, Noida',
-        phone: '76543 21098',
-      },
-    ],
-    totalEarnings: 1200,
-    completedJobs: 8,
-  };
-
-  const jobs = jobsQuery.data || mockJobs;
+  const jobs = jobsQuery.data || { jobs: [], totalEarnings: 0, completedJobs: 0 };
   const activeJobs = jobs.jobs.filter((j) => j.status !== 'completed');
   const completedJobs = jobs.jobs.filter((j) => j.status === 'completed');
 
@@ -148,6 +112,17 @@ export default function WorkerJobsPage() {
         </div>
 
         {/* Jobs List */}
+        {jobsQuery.isError ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-12 bg-white rounded-2xl"
+          >
+            <div className="text-5xl mb-4">🛡️</div>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">Worker approval required</h3>
+            <p className="text-gray-600">Your worker account is pending admin approval. Once approved, jobs and earnings will be visible.</p>
+          </motion.div>
+        ) : (
         <AnimatePresence>
           {activeTab === 'active' ? (
             <div className="space-y-4">
@@ -280,6 +255,7 @@ export default function WorkerJobsPage() {
             </div>
           )}
         </AnimatePresence>
+        )}
       </div>
 
       <BottomNav />

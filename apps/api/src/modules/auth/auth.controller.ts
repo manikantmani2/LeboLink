@@ -23,6 +23,10 @@ export class AuthController {
     password: string;
     otp: string;
     role: 'customer' | 'worker';
+    jobCategory?: string;
+    paymentPerHour?: number;
+    preferredLocation?: string;
+    nextAvailableDate?: string;
   }) {
     return this.authService.register(body);
   }

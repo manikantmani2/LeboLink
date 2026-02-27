@@ -3,12 +3,16 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Booking, BookingDocument, BookingStatus } from './booking.schema';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { User, UserDocument } from '../users/users.schema';
 
 const STEPS: BookingStatus[] = ['requested', 'accepted', 'in-progress', 'completed'];
 
 @Injectable()
 export class BookingsService {
-  constructor(@InjectModel(Booking.name) private readonly bookingModel: Model<BookingDocument>) {}
+  constructor(
+    @InjectModel(Booking.name) private readonly bookingModel: Model<BookingDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+  ) {}
 
   async create(dto: CreateBookingDto) {
     const now = new Date();
@@ -58,6 +62,9 @@ export class BookingsService {
   }
 
   async getAvailableJobs(workerId?: string) {
+    if (workerId) {
+      await this.assertWorkerApproved(workerId);
+    }
     const query: any = { status: 'requested' };
     if (workerId) {
       query.workerId = { $ne: workerId };
@@ -78,6 +85,9 @@ export class BookingsService {
   }
 
   async getWorkerJobs(workerId?: string) {
+    if (workerId) {
+      await this.assertWorkerApproved(workerId);
+    }
     const query: any = { workerId };
     const jobs = await this.bookingModel.find(query).sort({ createdAt: -1 });
 
@@ -262,5 +272,20 @@ export class BookingsService {
       createdAt: obj.createdAt,
       updatedAt: obj.updatedAt,
     };
+  }
+
+  private async assertWorkerApproved(workerId: string) {
+    const worker = await this.userModel.findById(workerId).lean();
+    if (!worker || worker.role !== 'worker' || worker.isDeleted) {
+      throw new NotFoundException('Worker not found');
+    }
+
+    if ((worker.accountStatus || 'active') !== 'active') {
+      throw new NotFoundException('Worker account is not active');
+    }
+
+    if ((worker.workerApproval?.status || 'pending') !== 'approved') {
+      throw new NotFoundException('Worker profile is pending admin approval');
+    }
   }
 }

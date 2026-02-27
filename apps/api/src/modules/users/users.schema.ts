@@ -11,6 +11,46 @@ export class User {
   @Prop({ enum: ['worker', 'customer', 'admin'], required: true })
   role!: 'worker' | 'customer' | 'admin';
 
+  @Prop({ enum: ['active', 'deactivated', 'blocked'], default: 'active' })
+  accountStatus?: 'active' | 'deactivated' | 'blocked';
+
+  @Prop({ default: false })
+  isDeleted?: boolean;
+
+  @Prop()
+  deletedAt?: Date;
+
+  @Prop()
+  deletedBy?: string;
+
+  @Prop()
+  moderationNote?: string;
+
+  @Prop({
+    type: {
+      status: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected', 'suspended'],
+        default: 'pending',
+      },
+      approvedAt: Date,
+      approvedBy: String,
+      rejectedAt: Date,
+      rejectedBy: String,
+      rejectionReason: String,
+      updatedAt: Date,
+    },
+  })
+  workerApproval?: {
+    status?: 'pending' | 'approved' | 'rejected' | 'suspended';
+    approvedAt?: Date;
+    approvedBy?: string;
+    rejectedAt?: Date;
+    rejectedBy?: string;
+    rejectionReason?: string;
+    updatedAt?: Date;
+  };
+
   @Prop()
   name?: string;
 
@@ -116,3 +156,5 @@ UserSchema.index({ role: 1 });
 UserSchema.index({ name: 1 });
 UserSchema.index({ skills: 1 });
 UserSchema.index({ location: '2dsphere' });
+UserSchema.index({ accountStatus: 1, isDeleted: 1 });
+UserSchema.index({ 'workerApproval.status': 1 });

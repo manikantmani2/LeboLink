@@ -1,322 +1,470 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { apiFetch } from '@/lib/api';
+import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth';
-import OTPInput from '@/components/OTPInput';
-import CAPTCHA from '@/components/CAPTCHA';
 
-type SendOtpResponse = { success: boolean; devCode?: string };
-type RegisterResponse = { success: boolean; token: string; userId: string };
-type VerifyOtpResponse = { success: boolean; token: string; userId: string };
+type RegisterStep = 'phone' | 'otp' | 'profile';
 
 export default function SignupPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [stage, setStage] = useState<'details' | 'otp'>('details');
+  const { theme } = useTheme();
+
+  const [step, setStep] = useState<RegisterStep>('phone');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [devOtp, setDevOtp] = useState('');
   const [formData, setFormData] = useState({
+    phone: '',
+    otp: '',
     name: '',
     email: '',
-    phone: '',
     password: '',
     confirmPassword: '',
-    role: 'customer',
+    role: 'customer' as 'customer' | 'worker',
+    // Worker specific fields
+    jobCategory: '',
+    paymentPerHour: '',
+    preferredLocation: '',
+    nextAvailableDate: '',
   });
-  const [otp, setOtp] = useState('');
-  const [devCode, setDevCode] = useState<string | undefined>();
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [captchaVerified, setCaptchaVerified] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const sendOtp = useMutation({
-    mutationFn: () =>
-      apiFetch<SendOtpResponse>({
-        path: '/api/v1/auth/send-otp',
-        method: 'POST',
-        body: { phone: formData.phone },
-      }),
-    onSuccess: (data) => {
-      setStage('otp');
-      setDevCode(data.devCode);
-    },
-  });
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!formData.phone || formData.phone.length !== 10) {
+      setError('Phone must be 10 digits');
+      return;
+    }
 
-  const registerUser = useMutation({
-    mutationFn: () =>
-      apiFetch<RegisterResponse>({
-        path: '/api/v1/auth/register',
+    setLoading(true);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
         method: 'POST',
-        body: {
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          password: formData.password,
-          otp,
-          role: formData.role,
-        },
-      }),
-    onSuccess: (data) => {
-      login(data.token, data.userId, {
-        id: data.userId,
-        phone: formData.phone,
-        role: formData.role as 'customer' | 'worker',
-        name: formData.name,
-        email: formData.email,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: formData.phone }),
       });
-      router.push('/role');
-    },
-  });
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.name.trim()) newErrors.name = 'Name is required';
-    if (!formData.email.trim()) newErrors.email = 'Email is required';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Invalid email';
-    if (!formData.phone || formData.phone.length !== 10) newErrors.phone = 'Valid 10-digit phone required';
-    if (!formData.password) newErrors.password = 'Password is required';
-    if (formData.password.length < 8) newErrors.password = 'Password must be at least 8 characters';
-    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleContinue = () => {
-    if (validateForm() && captchaVerified) {
-      sendOtp.mutate();
+      if (!response.ok) throw new Error('Failed to send OTP');
+      const data = await response.json();
+      setDevOtp(data.devCode || data.otp);
+      setStep('otp');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send OTP');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSignup = () => {
-    registerUser.mutate();
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!formData.otp || formData.otp.length !== 6) {
+      setError('OTP must be 6 digits');
+      return;
+    }
+
+    // Skip backend verification - the final registration will verify OTP
+    // This prevents OTP from being deleted before registration completes
+    setStep('profile');
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!formData.name) {
+      setError('Name is required');
+      return;
+    }
+    if (!formData.email || !formData.email.includes('@')) {
+      setError('Valid email is required');
+      return;
+    }
+    if (!formData.password || formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    // Validate worker fields if worker role
+    if (formData.role === 'worker') {
+      if (!formData.jobCategory) {
+        setError('Job category is required');
+        return;
+      }
+      if (!formData.paymentPerHour || parseFloat(formData.paymentPerHour) <= 0) {
+        setError('Payment per hour must be greater than 0');
+        return;
+      }
+      if (!formData.preferredLocation) {
+        setError('Preferred location is required');
+        return;
+      }
+      if (!formData.nextAvailableDate) {
+        setError('Next available date is required');
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiBase}/api/v1/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: formData.phone,
+          otp: formData.otp,
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role,
+          ...(formData.role === 'worker' && {
+            jobCategory: formData.jobCategory,
+            paymentPerHour: parseFloat(formData.paymentPerHour),
+            preferredLocation: formData.preferredLocation,
+            nextAvailableDate: formData.nextAvailableDate,
+          }),
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Registration failed');
+      }
+
+      const data = await response.json();
+      const userData = {
+        id: data.userId,
+        phone: data.phone,
+        role: data.role,
+        name: data.name,
+        email: data.email,
+      };
+      login(data.token, data.userId, userData);
+    } catch (err: any) {
+      setError(err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand/5 to-purple-50 flex items-center justify-center px-4">
+    <div 
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        background: `linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)`,
+      }}
+    >
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <div className="bg-white rounded-3xl shadow-2xl p-8">
-          {/* Logo */}
-          <div className="flex items-center justify-center mb-8">
-            <div className="w-16 h-16 bg-brand rounded-full flex items-center justify-center text-white font-bold text-3xl shadow-lg">
-              L
-            </div>
+        <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 text-center">Create Account</h1>
+            <p className="text-center text-gray-600 text-sm mt-2">
+              {step === 'phone' && 'Enter your phone number'}
+              {step === 'otp' && 'Verify your phone number'}
+              {step === 'profile' && 'Complete your profile'}
+            </p>
           </div>
 
-          <h2 className="text-3xl font-bold text-center text-primary mb-2">Create Account</h2>
-          <p className="text-center text-gray-600 mb-8">
-            {stage === 'details'
-              ? 'Join LeboLink today - quick and easy registration'
-              : 'Verify your phone number'}
-          </p>
+          {/* Error Message */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="mb-4 p-3 bg-red-500/20 backdrop-blur-sm border border-red-400/50 rounded-xl"
+            >
+              <p className="text-red-600 text-sm">{error}</p>
+            </motion.div>
+          )}
 
-          {stage === 'details' ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-              {/* Name */}
+          {/* Dev OTP Display */}
+          {devOtp && step === 'otp' && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-4 p-3 bg-amber-500/20 backdrop-blur-sm border border-amber-400/50 rounded-xl"
+            >
+              <p className="text-amber-700 text-sm font-mono font-bold">🔑 OTP: {devOtp}</p>
+            </motion.div>
+          )}
+
+          {/* Phone Step */}
+          {step === 'phone' && (
+            <motion.form onSubmit={handleSendOtp} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  placeholder="10-digit number"
+                  maxLength={10}
+                  required
+                />
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all disabled:opacity-50"
+              >
+                {loading ? 'Sending...' : 'Send OTP'}
+              </motion.button>
+
+              <p className="text-center text-sm text-gray-600">
+                Already have an account?{' '}
+                <button
+                  onClick={() => router.push('/')}
+                  className="text-blue-600 font-semibold hover:text-blue-700"
+                >
+                  Login
+                </button>
+              </p>
+            </motion.form>
+          )}
+
+          {/* OTP Step */}
+          {step === 'otp' && (
+            <motion.form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Enter 6-Digit OTP
+                </label>
+                <input
+                  type="text"
+                  value={formData.otp}
+                  onChange={(e) => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '') })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center text-2xl tracking-widest"
+                  placeholder="000000"
+                  maxLength={6}
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('phone');
+                    setFormData({ ...formData, otp: '' });
+                    setDevOtp('');
+                  }}
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300"
+                >
+                  Back
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="submit"
+                  disabled={loading || formData.otp.length !== 6}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loading ? 'Verifying...' : 'Verify'}
+                </motion.button>
+              </div>
+            </motion.form>
+          )}
+
+          {/* Profile Step */}
+          {step === 'profile' && (
+            <motion.form onSubmit={handleRegister} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Enter your full name"
-                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-brand focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="John Doe"
+                  required
                 />
-                {errors.name && <p className="text-red-600 text-xs mt-1">{errors.name}</p>}
               </div>
 
-              {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="Enter your email"
-                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-brand focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="john@example.com"
+                  required
                 />
-                {errors.email && <p className="text-red-600 text-xs mt-1">{errors.email}</p>}
               </div>
 
-              {/* Phone */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">+91</span>
-                  <input
-                    type="tel"
-                    maxLength={10}
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
-                    placeholder="Enter 10-digit number"
-                    className="w-full border-2 border-gray-200 rounded-xl p-3 pl-16 focus:border-brand focus:outline-none transition-colors"
-                  />
-                </div>
-                {errors.phone && <p className="text-red-600 text-xs mt-1">{errors.phone}</p>}
+                <label className="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
+                <select
+                  value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value as 'customer' | 'worker' })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="customer">Customer</option>
+                  <option value="worker">Worker</option>
+                </select>
               </div>
 
-              {/* Password */}
-              <div>
+              {/* Worker Specific Fields */}
+              {formData.role === 'worker' && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        🔧 Job Category
+                      </label>
+                      <select
+                        value={formData.jobCategory}
+                        onChange={(e) => setFormData({ ...formData, jobCategory: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        required
+                      >
+                        <option value="">Select your job category</option>
+                        <option value="Cleaning">House Cleaning & Maintenance</option>
+                        <option value="Plumbing">Plumbing & Water Works</option>
+                        <option value="Electrical">Electrical & Appliance Repair</option>
+                        <option value="Carpentry">Carpentry & Woodwork</option>
+                        <option value="Painting">Painting & Wall Finishing</option>
+                        <option value="HVAC">AC & Refrigeration Repair</option>
+                        <option value="Landscaping">Gardening & Landscaping</option>
+                        <option value="Handyman">General Handyman Services</option>
+                        <option value="Tutoring">Tutoring & Education</option>
+                        <option value="Childcare">Childcare & Babysitting</option>
+                        <option value="Cooking">Home Cooking & Catering</option>
+                        <option value="Elder Care">Elder Care & Nursing</option>
+                        <option value="Pet Care">Pet Care & Grooming</option>
+                        <option value="Transportation">Transportation & Moving</option>
+                        <option value="Other">Other Services</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Select the primary service you offer</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        💰 Payment Per Hour (₹)
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.paymentPerHour}
+                        onChange={(e) => setFormData({ ...formData, paymentPerHour: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        placeholder="500"
+                        step="0.01"
+                        min="0"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Enter your hourly rate</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        📍 Preferred Location
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.preferredLocation}
+                        onChange={(e) => setFormData({ ...formData, preferredLocation: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        placeholder="e.g., Bangalore, Mumbai"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">City or area where you prefer to work</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        📅 Available From
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.nextAvailableDate}
+                        onChange={(e) => setFormData({ ...formData, nextAvailableDate: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">When are you available to start work?</p>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+
+              <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Minimum 8 characters"
-                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-brand focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none pr-12"
+                  placeholder="••••••••"
+                  required
                 />
-                {errors.password && <p className="text-red-600 text-xs mt-1">{errors.password}</p>}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-9 text-gray-500"
+                >
+                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                </button>
               </div>
 
-              {/* Confirm Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  placeholder="Re-enter your password"
-                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-brand focus:outline-none transition-colors"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="••••••••"
+                  required
                 />
-                {errors.confirmPassword && <p className="text-red-600 text-xs mt-1">{errors.confirmPassword}</p>}
               </div>
 
-              {/* Role Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">I am a</label>
-                <div className="space-y-2">
-                  <label className="flex items-center p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors border-transparent has-[:checked]:border-orange-600">
-                    <input
-                      type="radio"
-                      name="role"
-                      value="customer"
-                      checked={formData.role === 'customer'}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-4 h-4"
-                    />
-                    <span className="ml-3 font-medium text-primary">Customer</span>
-                  </label>
-                  <label className="flex items-center p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors border-transparent has-[:checked]:border-orange-600">
-                    <input
-                      type="radio"
-                      name="role"
-                      value="worker"
-                      checked={formData.role === 'worker'}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-4 h-4"
-                    />
-                    <span className="ml-3 font-medium text-primary">Worker/Service Provider</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* CAPTCHA */}
-              <CAPTCHA value="" onChange={setCaptchaVerified} />
-
-              <button
-                onClick={handleContinue}
-                disabled={sendOtp.isPending || !captchaVerified}
-                className="w-full bg-gradient-to-r from-brand to-brand-dark text-white rounded-xl p-4 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] mt-6"
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all disabled:opacity-50"
               >
-                {sendOtp.isPending ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin">⏳</span> Sending OTP...
-                  </span>
-                ) : (
-                  'Continue →'
-                )}
-              </button>
+                {loading ? 'Creating Account...' : 'Create Account'}
+              </motion.button>
 
-              {sendOtp.isError && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-lg"
+              <p className="text-center text-sm text-gray-600">
+                Already have an account?{' '}
+                <button
+                  onClick={() => router.push('/')}
+                  className="text-blue-600 font-semibold hover:text-blue-700"
                 >
-                  {(sendOtp.error as Error)?.message}
-                </motion.p>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              {devCode && (
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className="bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-6 text-center"
-                >
-                  <p className="text-xs text-amber-700 mb-2 font-medium">🔐 Development Mode - Your OTP:</p>
-                  <p className="text-4xl font-bold text-amber-900 tracking-widest">{devCode}</p>
-                </motion.div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3 text-center">
-                  Enter 6-digit OTP sent to <span className="text-brand font-semibold">+91 {formData.phone}</span>
-                </label>
-                <OTPInput length={6} value={otp} onChange={setOtp} />
-              </div>
-
-              <button
-                onClick={handleSignup}
-                disabled={!otp || registerUser.isPending}
-                className="w-full bg-gradient-to-r from-brand to-brand-dark text-white rounded-xl p-4 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
-              >
-                {registerUser.isPending ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="animate-spin">⏳</span> Creating Account...
-                  </span>
-                ) : (
-                  'Create Account & Continue →'
-                )}
-              </button>
-
-              <button
-                onClick={() => {
-                  setStage('details');
-                  setOtp('');
-                  setDevCode(undefined);
-                }}
-                className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                ← Back
-              </button>
-
-              {registerUser.isError && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-lg"
-                >
-                  {(registerUser.error as Error)?.message}
-                </motion.p>
-              )}
-            </motion.div>
+                  Login
+                </button>
+              </p>
+            </motion.form>
           )}
-
-          <div className="mt-6 text-center text-sm text-gray-600">
-            Already have an account?{' '}
-            <button
-              onClick={() => router.push('/login')}
-              className="text-brand font-semibold hover:underline"
-            >
-              Login here
-            </button>
-          </div>
-
-          <p className="text-xs text-gray-500 text-center mt-6">
-            By continuing, you agree to our{' '}
-            <button className="text-brand font-medium">Terms</button> &{' '}
-            <button className="text-brand font-medium">Privacy Policy</button>
-          </p>
         </div>
       </motion.div>
     </div>
   );
 }
+

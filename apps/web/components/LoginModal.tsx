@@ -46,7 +46,8 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     setLoading(true);
     setError('');
     try {
-      const endpoint = isAdminMode ? 'http://localhost:3001/api/v1/auth/admin-login' : 'http://localhost:3001/api/v1/auth/login';
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const endpoint = isAdminMode ? `${apiBase}/api/v1/auth/admin-login` : `${apiBase}/api/v1/auth/login`;
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -90,7 +91,8 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/v1/auth/send-otp', {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: formData.phone }),
@@ -113,7 +115,8 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     setLoading(true);
 
     try {
-      const endpoint = isAdminMode ? 'http://localhost:3001/api/v1/auth/admin-verify-otp' : 'http://localhost:3001/api/v1/auth/verify-otp';
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const endpoint = isAdminMode ? `${apiBase}/api/v1/auth/admin-verify-otp` : `${apiBase}/api/v1/auth/verify-otp`;
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

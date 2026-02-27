@@ -25,7 +25,8 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/v1/auth/admin-login', {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiBase}/api/v1/auth/admin-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -58,7 +59,8 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/v1/auth/admin-verify-otp', {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiBase}/api/v1/auth/admin-verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

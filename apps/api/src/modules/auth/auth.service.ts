@@ -63,6 +63,12 @@ export class AuthService {
     if (!admin || admin.role !== 'admin') {
       throw new BadRequestException('Invalid admin credentials');
     }
+    if (admin.isDeleted) {
+      throw new BadRequestException('Account deleted');
+    }
+    if (admin.accountStatus === 'blocked' || admin.accountStatus === 'deactivated') {
+      throw new BadRequestException('Admin account is not active');
+    }
 
     // Verify password
     if (!admin.passwordHash) {
@@ -171,6 +177,8 @@ export class AuthService {
       success: true,
       token: 'jwt-token-placeholder',
       userId: user._id?.toString?.() ?? '',
+      phone: user.phone,
+      email: user.email,
       name: user.name,
       role: user.role,
     };
@@ -180,23 +188,43 @@ export class AuthService {
     if (!phone || !password) throw new BadRequestException('Phone and password required');
     
     const user = await this.usersService.findByPhone(phone);
-    if (!user || !user.password) throw new BadRequestException('Invalid phone or password');
+    if (!user) throw new BadRequestException('Invalid phone or password');
+    if (user.isDeleted) throw new BadRequestException('Account deleted');
+    if (user.accountStatus === 'blocked') throw new BadRequestException('Your account is blocked by admin');
+    if (user.accountStatus === 'deactivated') throw new BadRequestException('Your account is deactivated by admin');
+    
+    // Check which password field is used (password or passwordHash)
+    const storedPassword = user.password || user.passwordHash;
+    if (!storedPassword) throw new BadRequestException('Invalid phone or password');
     
     // Compare plain password with hashed password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, storedPassword);
     if (!isPasswordValid) throw new BadRequestException('Invalid phone or password');
     
-    // Check if user has completed profile
+    // Check if user has completed profile (requires name and role)
     const hasProfile = !!(user.name && user.role);
+    const workerApprovalStatus =
+      user.role === 'worker'
+        ? (user.workerApproval?.status || 'pending')
+        : undefined;
+    const canWork =
+      user.role === 'worker'
+        ? user.accountStatus === 'active' && workerApprovalStatus === 'approved'
+        : true;
     
     return {
       success: true,
-      phone,
+      phone: user.phone,
+      email: user.email,
       userId: user._id?.toString?.() ?? '',
       token: 'jwt-token-placeholder',
       hasProfile,
-      role: user.role,
-      name: user.name
+      role: user.role || 'customer',
+      name: user.name,
+      requiresOtp: false,
+      accountStatus: user.accountStatus || 'active',
+      workerApprovalStatus,
+      canWork,
     };
   }
 

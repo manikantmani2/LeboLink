@@ -6,6 +6,7 @@ import { User, UserSchema } from '../users/users.schema';
 import { Booking, BookingSchema } from '../bookings/booking.schema';
 import { Payment, PaymentSchema } from '../payments/payment.schema';
 import { Review, ReviewSchema } from '../reviews/review.schema';
+import { AdminAuditLog, AdminAuditLogSchema } from './admin-audit-log.schema';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { Review, ReviewSchema } from '../reviews/review.schema';
       { name: Booking.name, schema: BookingSchema },
       { name: Payment.name, schema: PaymentSchema },
       { name: Review.name, schema: ReviewSchema },
+      { name: AdminAuditLog.name, schema: AdminAuditLogSchema },
     ]),
   ],
   controllers: [AdminController],

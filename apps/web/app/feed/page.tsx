@@ -32,10 +32,11 @@ export default function FeedPage() {
     queryKey: ['available-jobs', user?.id],
     queryFn: () =>
       apiFetch<JobsResponse>({
-        path: '/api/v1/bookings/available',
+        path: `/api/v1/bookings/available${user?.id ? `?workerId=${user.id}` : ''}`,
         method: 'GET',
       }),
     refetchInterval: 10000,
+    enabled: !!user?.id,
   });
 
   const handleJobAction = (action: 'accept' | 'schedule', bookingId: string) => {
@@ -44,11 +45,7 @@ export default function FeedPage() {
     }
   };
 
-  const jobs: Job[] = jobsQuery.data?.jobs || [
-    { id: '1', bookingId: 'b1', title: 'Electrician needed', distanceKm: 2, when: 'Today', price: '₹400', rating: 4.8 },
-    { id: '2', bookingId: 'b2', title: 'Plumber for leak fix', distanceKm: 3.5, when: 'Tomorrow', price: '₹550', rating: 4.6 },
-    { id: '3', bookingId: 'b3', title: 'House cleaning', distanceKm: 1.2, when: 'This evening', price: '₹300', rating: 4.9 },
-  ];
+  const jobs: Job[] = jobsQuery.data?.jobs || [];
 
   const availableJobs = jobs.filter((job) => !acceptedJobs.has(job.bookingId));
 
@@ -99,6 +96,16 @@ export default function FeedPage() {
             >
               <div className="text-5xl mb-4">⏳</div>
               <p className="text-gray-600">Loading nearby jobs...</p>
+            </motion.div>
+          ) : jobsQuery.isError ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center py-12 bg-white rounded-2xl"
+            >
+              <div className="text-5xl mb-4">🛡️</div>
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">Worker approval required</h3>
+              <p className="text-gray-600">Your worker account is pending admin approval. Once approved, jobs will appear here.</p>
             </motion.div>
           ) : availableJobs.length === 0 ? (
             <motion.div
