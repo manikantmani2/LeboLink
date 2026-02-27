@@ -6,19 +6,19 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth';
 
-type RegisterStep = 'phone' | 'otp' | 'profile';
+type RegisterStep = 'email' | 'otp' | 'profile';
 
 export default function SignupPage() {
   const router = useRouter();
   const { login } = useAuth();
   const { theme } = useTheme();
 
-  const [step, setStep] = useState<RegisterStep>('phone');
+  const [step, setStep] = useState<RegisterStep>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [devOtp, setDevOtp] = useState('');
   const [formData, setFormData] = useState({
-    phone: '',
+    email: '',
     otp: '',
     name: '',
     email: '',
@@ -36,8 +36,8 @@ export default function SignupPage() {
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!formData.phone || formData.phone.length !== 10) {
-      setError('Phone must be 10 digits');
+    if (!formData.email || !formData.email.includes('@')) {
+      setError('Valid email is required');
       return;
     }
 
@@ -47,7 +47,7 @@ export default function SignupPage() {
       const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formData.phone }),
+        body: JSON.stringify({ email: formData.email }),
       });
 
       if (!response.ok) throw new Error('Failed to send OTP');
@@ -122,10 +122,10 @@ export default function SignupPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          email: formData.email,
           phone: formData.phone,
           otp: formData.otp,
           name: formData.name,
-          email: formData.email,
           password: formData.password,
           role: formData.role,
           ...(formData.role === 'worker' && {
@@ -145,10 +145,10 @@ export default function SignupPage() {
       const data = await response.json();
       const userData = {
         id: data.userId,
+        email: data.email,
         phone: data.phone,
         role: data.role,
         name: data.name,
-        email: data.email,
       };
       login(data.token, data.userId, userData);
     } catch (err: any) {
@@ -175,8 +175,8 @@ export default function SignupPage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 text-center">Create Account</h1>
             <p className="text-center text-gray-600 text-sm mt-2">
-              {step === 'phone' && 'Enter your phone number'}
-              {step === 'otp' && 'Verify your phone number'}
+              {step === 'email' && 'Enter your email address'}
+              {step === 'otp' && 'Verify your email address'}
               {step === 'profile' && 'Complete your profile'}
             </p>
           </div>
@@ -203,18 +203,17 @@ export default function SignupPage() {
             </motion.div>
           )}
 
-          {/* Phone Step */}
-          {step === 'phone' && (
+          {/* Email Step */}
+          {step === 'email' && (
             <motion.form onSubmit={handleSendOtp} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
                 <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  placeholder="10-digit number"
-                  maxLength={10}
+                  placeholder="your@email.com"
                   required
                 />
               </div>
@@ -232,7 +231,7 @@ export default function SignupPage() {
               <p className="text-center text-sm text-gray-600">
                 Already have an account?{' '}
                 <button
-                  onClick={() => router.push('/')}
+                  onClick={() => router.push('/login')}
                   className="text-blue-600 font-semibold hover:text-blue-700"
                 >
                   Login
@@ -246,7 +245,7 @@ export default function SignupPage() {
             <motion.form onSubmit={handleVerifyOtp} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter 6-Digit OTP
+                  Enter 6-Digit OTP sent to {formData.email}
                 </label>
                 <input
                   type="text"
@@ -263,7 +262,7 @@ export default function SignupPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setStep('phone');
+                    setStep('email');
                     setFormData({ ...formData, otp: '' });
                     setDevOtp('');
                   }}
