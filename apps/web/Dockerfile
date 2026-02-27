@@ -9,6 +9,9 @@ COPY package*.json ./
 # Copy web app package files
 COPY apps/web/package*.json ./apps/web/
 
+# Copy shared package files
+COPY packages/shared/package*.json ./packages/shared/
+
 # Install dependencies
 RUN npm ci
 
@@ -18,13 +21,16 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY apps/web/package*.json ./apps/web/
+COPY packages/shared/package*.json ./packages/shared/
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 
 # Copy all source files
 COPY apps/web ./apps/web
+COPY packages/shared ./packages/shared
 COPY tsconfig.json ./
 
 # Build application
@@ -42,6 +48,7 @@ RUN apk add --no-cache dumb-init
 # Copy package files
 COPY package*.json ./
 COPY apps/web/package*.json ./apps/web/
+COPY packages/shared/package*.json ./packages/shared/
 
 # Install production dependencies only
 RUN npm ci --omit=dev

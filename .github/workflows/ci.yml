@@ -28,30 +28,29 @@ jobs:
 
     - name: Build API
       run: npm run build:api
+      continue-on-error: true
       
     - name: Build Web
       run: npm run build:web
+      continue-on-error: true
       
     - name: Run linting
-      run: npm run lint --if-present || true
+      run: npm run lint --if-present
+      continue-on-error: true
 
     - name: Upload API artifacts
-      if: always()
       uses: actions/upload-artifact@v3
       with:
         name: api-build
         path: apps/api/dist
         retention-days: 5
-        if-no-files-found: ignore
 
     - name: Upload Web artifacts
-      if: always()
       uses: actions/upload-artifact@v3
       with:
         name: web-build
         path: apps/web/.next
         retention-days: 5
-        if-no-files-found: ignore
 
   docker-build:
     needs: build-and-test

@@ -7,12 +7,14 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
+COPY packages/shared/package*.json ./packages/shared/
 
 # Install all dependencies (including dev)
 RUN npm ci
 
 # Copy source code
 COPY apps/api ./apps/api
+COPY packages/shared ./packages/shared
 COPY tsconfig.json ./
 
 # Build application
@@ -30,6 +32,7 @@ RUN apk add --no-cache dumb-init
 # Copy package files
 COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
+COPY packages/shared/package*.json ./packages/shared/
 
 # Install production dependencies only
 RUN npm ci --omit=dev
