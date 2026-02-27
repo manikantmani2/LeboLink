@@ -7,8 +7,7 @@ on:
     paths:
       - 'apps/api/**'
       - 'apps/web/**'
-      - 'apps/api/Dockerfile'
-      - 'apps/web/Dockerfile'
+      - '.github/workflows/docker-push.yml'
 
 env:
   REGISTRY: ghcr.io
