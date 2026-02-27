@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
+import * as twilio from 'twilio';
 
 type OtpEntry = { code: string; expiresAt: number };
 
@@ -10,8 +11,16 @@ const globalOtpStore = new Map<string, OtpEntry>();
 @Injectable()
 export class AuthService {
   private store: Map<string, OtpEntry> = globalOtpStore;
+  private twilioClient: twilio.Twilio | null = null;
+  private logger = new Logger('AuthService');
 
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) {
+    // Initialize Twilio client if credentials are provided
+    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+      this.twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      this.logger.log('Twilio SMS service initialized');
+    }
+  }
 
   async sendOtp(phone: string) {
     if (!phone) throw new BadRequestException('Phone required');
@@ -19,10 +28,39 @@ export class AuthService {
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
     this.store.set(phone, { code, expiresAt });
 
-    // In production, integrate Firebase/AWS SNS here.
-    console.log(`[OTP] ${phone} -> ${code}`);
+    // Try to send via Twilio in production
+    if (process.env.NODE_ENV === 'production' && this.twilioClient) {
+      try {
+        await this.twilioClient.messages.create({
+          body: `Your LeboLink OTP is: ${code}\n\nValid for 15 minutes. Do not share this code.`,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: this.formatPhoneNumber(phone),
+        });
+        this.logger.log(`OTP sent to ${phone} via SMS`);
+        return { success: true, phone };
+      } catch (error) {
+        this.logger.error(`Failed to send OTP via Twilio: ${error.message}`);
+        throw new BadRequestException('Failed to send OTP. Please try again later.');
+      }
+    }
 
-    return { success: true, phone, devCode: process.env.NODE_ENV !== 'production' ? code : undefined };
+    // Development fallback: log OTP to console
+    this.logger.warn(`[DEV] OTP for ${phone}: ${code}`);
+    return { success: true, phone, devCode: code };
+  }
+
+  private formatPhoneNumber(phone: string): string {
+    // Remove any non-digit characters
+    const cleaned = phone.replace(/\D/g, '');
+    // Add country code if not present (assumes +1 for US, adjust as needed)
+    if (cleaned.length === 10) return `+1${cleaned}`;
+    if (cleaned.length === 11 && cleaned[0] === '1') return `+${cleaned}`;
+    if (!cleaned.startsWith('+')) return `+${cleaned}`;
+    return cleaned;
+  }
+
+  private generateCode(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
   async verifyOtp(phone: string, otp: string) {
@@ -85,14 +123,35 @@ export class AuthService {
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
     this.store.set(`admin_${phone}`, { code, expiresAt });
 
-    console.log(`[ADMIN OTP] ${phone} -> ${code}`);
+    // Try to send via Twilio in production
+    if (process.env.NODE_ENV === 'production' && this.twilioClient) {
+      try {
+        await this.twilioClient.messages.create({
+          body: `Your LeboLink Admin OTP is: ${code}\n\nValid for 15 minutes. Do not share this code.`,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: this.formatPhoneNumber(phone),
+        });
+        this.logger.log(`Admin OTP sent to ${phone} via SMS`);
+        return { 
+          success: true, 
+          message: 'OTP sent to admin phone',
+          phone,
+          requiresOtp: true
+        };
+      } catch (error) {
+        this.logger.error(`Failed to send admin OTP via Twilio: ${error.message}`);
+        throw new BadRequestException('Failed to send OTP. Please try again later.');
+      }
+    }
 
+    // Development fallback: log OTP to console
+    this.logger.warn(`[DEV] Admin OTP for ${phone}: ${code}`);
     return { 
       success: true, 
       message: 'OTP sent to admin phone',
       phone,
       requiresOtp: true,
-      devCode: process.env.NODE_ENV !== 'production' ? code : undefined 
+      devCode: code 
     };
   }
 
