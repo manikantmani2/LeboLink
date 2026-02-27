@@ -48,7 +48,31 @@ npm run dev
 | `npm run dev:web` | Web only (3000) |
 | `npm run dev:api` | API only (3001) |
 
-## 🔐 Authentication
+## � Docker Deployment
+
+**Start with Docker Compose:**
+
+```bash
+docker-compose up -d
+```
+
+This starts:
+- 🌐 Frontend: http://localhost:3000
+- 🔌 API: http://localhost:3001
+- 📊 MongoDB Express: http://localhost:8081
+- 🔴 Redis: localhost:6379
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for full deployment guide.
+
+## 🚀 Deployment Options
+
+- **Vercel** (Frontend) - See [DEPLOYMENT.md](DEPLOYMENT.md#vercel-frontend)
+- **Railway** (Full Stack) - See [DEPLOYMENT.md](DEPLOYMENT.md#railway-full-stack)
+- **Render** (Full Stack) - See [DEPLOYMENT.md](DEPLOYMENT.md#render-full-stack)
+- **Docker** (Self-hosted) - See [DEPLOYMENT.md](DEPLOYMENT.md#local-deployment-docker)
+- **GitHub Actions** (CI/CD) - See [DEPLOYMENT.md](DEPLOYMENT.md#github-actions-cicd)
+
+## �🔐 Authentication
 
 **Test Admin:** Phone `9999999999` | Password `Hello@&1234`
 

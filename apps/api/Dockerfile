@@ -1,12 +1,50 @@
-# Backend Dockerfile
-FROM node:18-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --no-audit --no-fund
+# LeboLink API - NestJS Backend
+# Build stage
+FROM node:18-alpine AS builder
 
-FROM node:18-alpine AS runner
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+
+# Copy package files
+COPY package*.json ./
+COPY apps/api/package*.json ./apps/api/
+
+# Install all dependencies (including dev)
+RUN npm ci
+
+# Copy source code
+COPY apps/api ./apps/api
+COPY tsconfig.json ./
+
+# Build application
+WORKDIR /app/apps/api
+RUN npm run build
+
+# Runtime stage
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Copy package files
+COPY package*.json ./
+COPY apps/api/package*.json ./apps/api/
+
+# Install production dependencies only
+RUN npm ci --omit=dev
+
+# Copy built application from builder
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+USER nodejs
+
 EXPOSE 3001
-CMD ["npm","run","start"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3001/api/v1/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "apps/api/dist/src/main.js"]

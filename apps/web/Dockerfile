@@ -1,22 +1,65 @@
-# Frontend Dockerfile
+# LeboLink Web - Next.js Frontend
 FROM node:18-alpine AS deps
+
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --no-audit --no-fund
+
+# Copy root package files
+COPY package*.json ./
+
+# Copy web app package files
+COPY apps/web/package*.json ./apps/web/
+
+# Install dependencies
+RUN npm ci
 
 FROM node:18-alpine AS builder
+
 WORKDIR /app
+
+COPY package*.json ./
+COPY apps/web/package*.json ./apps/web/
+
+# Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+
+# Copy all source files
+COPY apps/web ./apps/web
+COPY tsconfig.json ./
+
+# Build application
+WORKDIR /app/apps/web
 RUN npm run build
 
-FROM node:18-alpine AS runner
+# Runtime stage
+FROM node:18-alpine
+
 WORKDIR /app
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+# Copy package files
+COPY package*.json ./
+COPY apps/web/package*.json ./apps/web/
+
+# Install production dependencies only
+RUN npm ci --omit=dev
+
+# Copy built application from builder
+COPY --from=builder /app/apps/web/.next ./apps/web/.next
+COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder /app/apps/web/next.config.js ./apps/web/next.config.js
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+USER nodejs
+
 ENV NODE_ENV=production
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./next.config.js
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
 EXPOSE 3000
-CMD ["npm","run","start"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["npm", "run", "start", "--", "--prefix", "apps/web"]
