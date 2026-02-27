@@ -42,8 +42,8 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init and system dependencies for proper signal handling and libraries
+RUN apk add --no-cache dumb-init curl ca-certificates
 
 # Copy package files
 COPY package*.json ./
