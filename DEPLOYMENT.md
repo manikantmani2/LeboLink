@@ -132,9 +132,11 @@ gh workflow run ci.yml
 
 ## Vercel (Frontend)
 
-Vercel is the best platform for Next.js applications.
+Vercel is the best platform for Next.js applications. 
 
-### Setup Steps
+**⚠️ Important**: Vercel will host the **frontend (Web) only**. The API backend needs to be hosted separately on Railway, Render, or another platform (see sections below).
+
+### Quick Deploy Steps
 
 1. **Go to Vercel Dashboard**
    - Visit https://vercel.com
@@ -143,35 +145,58 @@ Vercel is the best platform for Next.js applications.
 2. **Import Project**
    - Click "Add New" → "Project"
    - Select "LeboLink" repository from GitHub
-   - Choose "Next.js" framework
+   - Vercel will auto-detect it as a monorepo
 
-3. **Configure Project**
-   - **Root Directory**: `apps/web`
-   - **Build Command**: `npm run build --prefix apps/web`
-   - **Start Command**: `npm run start --prefix apps/web`
+3. **Configure Project Settings**
+   
+   Vercel should automatically use the `vercel.json` configuration, but verify:
+   
+   - **Framework Preset**: Next.js
+   - **Root Directory**: Leave as root (/) - vercel.json handles the rest
+   - **Build Command**: Auto-detected from vercel.json
+   - **Output Directory**: Auto-detected from vercel.json
    - **Install Command**: `npm install`
 
 4. **Set Environment Variables**
-   - Click "Environment Variables"
-   - Add:
-     - `NEXT_PUBLIC_API_BASE_URL`: `https://your-api-domain.com` (use Railway/Render URL)
+   
+   Click "Environment Variables" and add:
+   
+   ```
+   NEXT_PUBLIC_API_BASE_URL=https://your-api-url.railway.app
+   ```
+   
+   ⚠️ You'll need to deploy the API first (see Railway or Render sections below) and use that URL here.
 
 5. **Deploy**
    - Click "Deploy"
-   - Wait for deployment to complete
-   - Get your Vercel domain (e.g., `lebolink.vercel.app`)
+   - Wait 2-3 minutes for build to complete
+   - Get your Vercel URL: `https://lebolink.vercel.app` (or similar)
 
 ### Auto-Deploy on Push
 
 Once connected to GitHub:
-- Changes to `apps/web` on `main` branch auto-deploy to production
-- Pull requests get preview URLs automatically
+- ✅ Changes to `apps/web` on `main` branch auto-deploy to production
+- ✅ Pull requests get preview URLs automatically
+- ✅ Zero-downtime deployments
 
-### Domain Setup
+### Custom Domain Setup
 
-1. Click "Settings" → "Domains"
-2. Add your custom domain (if available)
-3. Update DNS records as per Vercel instructions
+1. Go to Project Settings → "Domains"
+2. Add your custom domain (e.g., `www.lebolink.com`)
+3. Update DNS records at your domain provider:
+   - Type: `CNAME`
+   - Name: `www`
+   - Value: `cname.vercel-dns.com`
+4. Wait for DNS propagation (1-48 hours)
+
+### Deployment Order
+
+For full stack deployment:
+
+1. **First**: Deploy API on Railway/Render (see sections below)
+2. **Second**: Copy the API URL from Railway/Render
+3. **Third**: Deploy Web on Vercel using the API URL
+4. **Fourth**: Test the complete flow
 
 ---
 
