@@ -6,14 +6,16 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth';
 
-type RegisterStep = 'email' | 'otp' | 'profile';
+type RegisterStep = 'method' | 'contact' | 'otp' | 'profile';
+type AuthMethod = 'email' | 'phone';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
   const { theme } = useTheme();
 
-  const [step, setStep] = useState<RegisterStep>('email');
+  const [step, setStep] = useState<RegisterStep>('method');
+  const [authMethod, setAuthMethod] = useState<AuthMethod>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [devOtp, setDevOtp] = useState('');
@@ -36,32 +38,44 @@ export default function RegisterPage() {
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!formData.email || !formData.email.includes('@')) {
-      setError('Valid email is required');
-      return;
+
+    if (authMethod === 'email') {
+      if (!formData.email || !formData.email.includes('@')) {
+        setError('Valid email is required');
+        return;
+      }
+    } else {
+      if (!formData.phone || formData.phone.replace(/\D/g, '').length < 10) {
+        setError('Valid phone number is required (at least 10 digits)');
+        return;
+      }
     }
 
     setLoading(true);
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
       
+      const requestBody = authMethod === 'email' 
+        ? { email: formData.email }
+        : { phone: formData.phone };
+
       const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formData.email }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to send verification code');
+        throw new Error(data.message || `Failed to send ${authMethod === 'email' ? 'email' : 'SMS'}`);
       }
 
       setDevOtp(data.devCode || data.otp);
       setStep('otp');
     } catch (err: any) {
       console.error('OTP Send Error:', err);
-      setError(err.message || 'Failed to send verification code. Please check your email address and try again.');
+      setError(err.message || `Failed to send verification code. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -76,7 +90,6 @@ export default function RegisterPage() {
     }
 
     // Skip backend verification - the final registration will verify OTP
-    // This prevents OTP from being deleted before registration completes
     setStep('profile');
   };
 
@@ -88,16 +101,100 @@ export default function RegisterPage() {
       setError('Name is required');
       return;
     }
-    if (!formData.email || !formData.email.includes('@')) {
+
+    if (authMethod === 'email' && (!formData.email || !formData.email.includes('@'))) {
       setError('Valid email is required');
       return;
     }
+
+    if (authMethod === 'phone' && (!formData.phone || formData.phone.replace(/\D/g, '').length < 10)) {
+      setError('Valid phone number is required');
+      return;
+    }
+
     if (!formData.password || formData.password.length < 6) {
       setError('Password must be at least 6 characters');
       return;
     }
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      return;
+    }
+
+    // Validate worker fields if worker role
+    if (formData.role === 'worker') {
+      if (!formData.jobCategory) {
+        setError('Job category is required');
+        return;
+      }
+      if (!formData.paymentPerHour || parseFloat(formData.paymentPerHour) <= 0) {
+        setError('Payment per hour must be greater than 0');
+        return;
+      }
+      if (!formData.preferredLocation) {
+        setError('Preferred location is required');
+        return;
+      }
+      if (!formData.nextAvailableDate) {
+        setError('Next available date is required');
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const registerData: any = {
+        otp: formData.otp,
+        name: formData.name,
+        password: formData.password,
+        role: formData.role,
+      };
+
+      if (authMethod === 'email') {
+        registerData.email = formData.email;
+      } else {
+        registerData.phone = formData.phone;
+      }
+
+      // Include both if both provided
+      if (formData.email) registerData.email = formData.email;
+      if (formData.phone) registerData.phone = formData.phone;
+
+      // Add worker-specific fields if worker role
+      if (formData.role === 'worker') {
+        registerData.jobCategory = formData.jobCategory;
+        registerData.paymentPerHour = parseFloat(formData.paymentPerHour);
+        registerData.preferredLocation = formData.preferredLocation;
+        registerData.nextAvailableDate = formData.nextAvailableDate;
+      }
+
+      const response = await fetch(`${apiBase}/api/v1/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(registerData),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Registration failed');
+      }
+
+      const data = await response.json();
+      const userData = {
+        id: data.userId,
+        phone: data.phone,
+        role: data.role,
+        name: data.name,
+        email: data.email,
+      };
+      login(data.token, data.userId, userData);
+    } catch (err: any) {
+      setError(err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
       return;
     }
 
@@ -189,8 +286,9 @@ export default function RegisterPage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 text-center">Create Account</h1>
             <p className="text-center text-gray-600 text-sm mt-2">
-              {step === 'email' && 'Enter your email address'}
-              {step === 'otp' && 'Verify your email address'}
+              {step === 'method' && 'Choose your sign-up method'}
+              {step === 'contact' && `Enter your ${authMethod === 'email' ? 'email' : 'phone'}`}
+              {step === 'otp' && 'Verify your identity'}
               {step === 'profile' && 'Complete your profile'}
             </p>
           </div>
@@ -217,29 +315,53 @@ export default function RegisterPage() {
             </motion.div>
           )}
 
-          {/* Email Step */}
-          {step === 'email' && (
-            <motion.form onSubmit={handleSendOtp} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  placeholder="your@email.com"
-                  required
-                />
+          {/* Method Selection Step */}
+          {step === 'method' && (
+            <motion.div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setAuthMethod('email');
+                    setStep('contact');
+                  }}
+                  className={`p-4 rounded-xl border-2 transition-all ${
+                    authMethod === 'email'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:border-blue-300'
+                  }`}
+                >
+                  <div className="text-2xl mb-2">📧</div>
+                  <div className="font-semibold text-sm text-gray-900">Email</div>
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setAuthMethod('phone');
+                    setStep('contact');
+                  }}
+                  className={`p-4 rounded-xl border-2 transition-all ${
+                    authMethod === 'phone'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 bg-white hover:border-blue-300'
+                  }`}
+                >
+                  <div className="text-2xl mb-2">📱</div>
+                  <div className="font-semibold text-sm text-gray-900">Phone</div>
+                </motion.button>
               </div>
 
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all disabled:opacity-50"
+                onClick={() => setStep('contact')}
+                type="button"
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all"
               >
-                {loading ? 'Sending...' : 'Send OTP'}
+                Continue
               </motion.button>
 
               <p className="text-center text-sm text-gray-600">
@@ -251,6 +373,55 @@ export default function RegisterPage() {
                   Login
                 </button>
               </p>
+            </motion.div>
+          )}
+
+          {/* Contact Step */}
+          {step === 'contact' && (
+            <motion.form onSubmit={handleSendOtp} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {authMethod === 'email' ? 'Email Address' : 'Phone Number'}
+                </label>
+                {authMethod === 'email' ? (
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    placeholder="your@email.com"
+                    required
+                  />
+                ) : (
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    placeholder="+1 (555) 000-0000"
+                    required
+                  />
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStep('method')}
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300"
+                >
+                  Back
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-all disabled:opacity-50"
+                >
+                  {loading ? 'Sending...' : 'Send OTP'}
+                </motion.button>
+              </div>
             </motion.form>
           )}
 
@@ -276,7 +447,7 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setStep('email');
+                    setStep('contact');
                     setFormData({ ...formData, otp: '' });
                     setDevOtp('');
                   }}
