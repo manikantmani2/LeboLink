@@ -74,10 +74,10 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for full deployment guide.
 
 ## �🔐 Authentication
 
-**Test Admin:** Phone `9999999999` | Password `Hello@&1234`
+**Test Admin:** Email `admin@lebolink.com` | Password `Hello@&1234`
 
-- **User/Worker:** OTP-based registration with phone verification
-- **Admin:** Phone + Password + OTP (2FA)
+- **User/Worker:** Email-based registration with OTP verification
+- **Admin:** Email + Password + Email OTP verification
 - Role-based routing (Customer → Home, Worker → Jobs, Admin → Dashboard)
 
 ## 📱 Project Structure

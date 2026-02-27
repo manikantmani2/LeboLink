@@ -54,37 +54,8 @@ export class UsersService {
     return user.toObject();
   }
 
-  async findByPhoneAndPassword(phone: string, password: string) {
-    return this.userModel.findOne({ phone, password }).lean();
-  }
-
-  async findByPhone(phone: string) {
-    return this.userModel.findOne({ phone, isDeleted: { $ne: true } }).lean();
-  }
-
   async findByEmail(email: string) {
     return this.userModel.findOne({ email, isDeleted: { $ne: true } }).lean();
-  }
-
-  async findOrCreateByPhone(phone: string, role: 'worker' | 'customer' | 'admin' = 'worker') {
-    const user = await this.userModel.findOne({ phone, isDeleted: { $ne: true } });
-    if (user) return user.toObject();
-
-    const createdUser = await this.userModel.create({
-      phone,
-      role,
-      accountStatus: 'active',
-      isDeleted: false,
-      ...(role === 'worker'
-        ? {
-            workerApproval: {
-              status: 'pending',
-              updatedAt: new Date(),
-            },
-          }
-        : {}),
-    });
-    return createdUser.toObject();
   }
 
   async findOrCreateByEmail(email: string, role: 'worker' | 'customer' | 'admin' = 'customer') {

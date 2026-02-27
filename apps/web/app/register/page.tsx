@@ -6,22 +6,22 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth';
 
-type RegisterStep = 'phone' | 'otp' | 'profile';
+type RegisterStep = 'email' | 'otp' | 'profile';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
   const { theme } = useTheme();
 
-  const [step, setStep] = useState<RegisterStep>('phone');
+  const [step, setStep] = useState<RegisterStep>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [devOtp, setDevOtp] = useState('');
   const [formData, setFormData] = useState({
+    email: '',
     phone: '',
     otp: '',
     name: '',
-    email: '',
     password: '',
     confirmPassword: '',
     role: 'customer' as 'customer' | 'worker',
@@ -36,8 +36,8 @@ export default function RegisterPage() {
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!formData.phone || formData.phone.length !== 10) {
-      setError('Phone must be 10 digits');
+    if (!formData.email || !formData.email.includes('@')) {
+      setError('Valid email is required');
       return;
     }
 
@@ -47,7 +47,7 @@ export default function RegisterPage() {
       const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formData.phone }),
+        body: JSON.stringify({ email: formData.email }),
       });
 
       if (!response.ok) throw new Error('Failed to send OTP');
@@ -122,10 +122,10 @@ export default function RegisterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          email: formData.email,
           phone: formData.phone,
           otp: formData.otp,
           name: formData.name,
-          email: formData.email,
           password: formData.password,
           role: formData.role,
           ...(formData.role === 'worker' && {
@@ -175,8 +175,8 @@ export default function RegisterPage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 text-center">Create Account</h1>
             <p className="text-center text-gray-600 text-sm mt-2">
-              {step === 'phone' && 'Enter your phone number'}
-              {step === 'otp' && 'Verify your phone number'}
+              {step === 'email' && 'Enter your email address'}
+              {step === 'otp' && 'Verify your email address'}
               {step === 'profile' && 'Complete your profile'}
             </p>
           </div>
@@ -207,14 +207,13 @@ export default function RegisterPage() {
           {step === 'phone' && (
             <motion.form onSubmit={handleSendOtp} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
                 <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  placeholder="10-digit number"
-                  maxLength={10}
+                  placeholder="your@email.com"
                   required
                 />
               </div>

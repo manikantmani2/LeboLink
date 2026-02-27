@@ -18,7 +18,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [formData, setFormData] = useState({
-    phone: '',
+    email: '',
     password: '',
     otp: '',
   });
@@ -28,14 +28,14 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const [useOtpFallback, setUseOtpFallback] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [validationErrors, setValidationErrors] = useState({ phone: '', password: '' });
+  const [validationErrors, setValidationErrors] = useState({ email: '', password: '' });
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setValidationErrors({ phone: '', password: '' });
+    setValidationErrors({ email: '', password: '' });
 
-    if (!formData.phone || formData.phone.length !== 10) {
-      setValidationErrors((prev) => ({ ...prev, phone: 'Phone must be 10 digits' }));
+    if (!formData.email || !formData.email.includes('@')) {
+      setValidationErrors((prev) => ({ ...prev, email: 'Valid email is required' }));
       return;
     }
     if (!formData.password) {
@@ -51,7 +51,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formData.phone, password: formData.password }),
+        body: JSON.stringify({ email: formData.email, password: formData.password }),
       });
 
       if (!response.ok) {
@@ -60,7 +60,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       }
 
       const data = await response.json();
-      if (data.requiresOtp || data.requiresMfa) {
+      if (data.requiresOtp) {
         // Extract and display dev code for admin OTP
         if (data.devCode) {
           setDevOtp(data.devCode);
@@ -70,10 +70,10 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         // Extract user data from response
         const userData = {
           id: data.userId,
+          email: data.email,
           phone: data.phone,
           role: data.role,
-          name: data.name,
-          email: data.email
+          name: data.name
         };
         login(data.token, data.userId, userData);
         onClose();
@@ -95,7 +95,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formData.phone }),
+        body: JSON.stringify({ email: formData.email }),
       });
 
       if (!response.ok) throw new Error('Failed to send OTP');
@@ -120,7 +120,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: formData.phone, otp: formData.otp }),
+        body: JSON.stringify({ email: formData.email, otp: formData.otp }),
       });
 
       if (!response.ok) throw new Error('Invalid OTP');
@@ -129,10 +129,10 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       // Extract user data from response
       const userData = {
         id: data.userId,
+        email: data.email,
         phone: data.phone,
         role: data.role,
-        name: data.name,
-        email: data.email
+        name: data.name
       };
       login(data.token, data.userId, userData);
       onClose();
@@ -192,7 +192,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                   onClick={() => {
                     setIsAdminMode(!isAdminMode);
                     setError('');
-                    setFormData({ phone: '', password: '', otp: '' });
+                    setFormData({ email: '', password: '', otp: '' });
                     setStep('credentials');
                   }}
                   className={`px-4 py-2 rounded-lg font-semibold transition-all ${
@@ -231,18 +231,17 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 <motion.form onSubmit={handlePasswordLogin} className="space-y-3">
                   <div>
                     <input
-                      type="tel"
-                      value={formData.phone}
+                      type="email"
+                      value={formData.email}
                       onChange={(e) => {
-                        setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') });
-                        setValidationErrors((prev) => ({ ...prev, phone: '' }));
+                        setFormData({ ...formData, email: e.target.value });
+                        setValidationErrors((prev) => ({ ...prev, email: '' }));
                       }}
                       className="w-full px-4 py-3 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2 text-white placeholder-gray-400"
-                      placeholder="Enter Phone Number *"
-                      maxLength={10}
+                      placeholder="Enter Email Address *"
                     />
-                    {validationErrors.phone && (
-                      <p className="text-red-400 text-xs mt-1">{validationErrors.phone}</p>
+                    {validationErrors.email && (
+                      <p className="text-red-400 text-xs mt-1">{validationErrors.email}</p>
                     )}
                   </div>
 
@@ -335,17 +334,21 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
               {/* OTP Request Form */}
               {step === 'credentials' && useOtpFallback && (
                 <motion.form onSubmit={handleSendOtp} className="space-y-3">
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">+91</span>
+                  <div>
                     <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
-                      className="w-full pl-14 pr-4 py-3 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2 text-white placeholder-gray-400"
-                      placeholder="10-digit number"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => {
+                        setFormData({ ...formData, email: e.target.value });
+                        setValidationErrors((prev) => ({ ...prev, email: '' }));
+                      }}
+                      className="w-full px-4 py-3 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2 text-white placeholder-gray-400"
+                      placeholder="Enter Email Address"
                       required
-                      maxLength={10}
                     />
+                    {validationErrors.email && (
+                      <p className="text-red-400 text-xs mt-1">{validationErrors.email}</p>
+                    )}
                   </div>
 
                   <motion.button
@@ -373,7 +376,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 <motion.form onSubmit={handleVerifyOtp} className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-200 mb-2 text-center">
-                      Enter 6-Digit OTP sent to +91 {formData.phone}
+                    Enter 6-Digit OTP sent to {formData.email}
                     </label>
                     <input
                       type="text"
