@@ -76,7 +76,7 @@ MIT License - see [LICENSE](LICENSE) file
 
 ## 👨‍💻 Author
 
-**Manikant Mani**  
+**Manikant Sharma**  
 📧 manikantsrma12@gmail.com  
 🐙 [@manikantmani2](https://github.com/manikantmani2)
 
