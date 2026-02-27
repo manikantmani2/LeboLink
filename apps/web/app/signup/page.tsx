@@ -21,7 +21,6 @@ export default function SignupPage() {
     email: '',
     otp: '',
     name: '',
-    email: '',
     password: '',
     confirmPassword: '',
     role: 'customer' as 'customer' | 'worker',
@@ -118,23 +117,31 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const registerData: any = {
+        email: formData.email,
+        otp: formData.otp,
+        name: formData.name,
+        password: formData.password,
+        role: formData.role,
+      };
+
+      // Include phone only if provided
+      if (formData.phone) {
+        registerData.phone = formData.phone;
+      }
+
+      // Add worker-specific fields if worker role
+      if (formData.role === 'worker') {
+        registerData.jobCategory = formData.jobCategory;
+        registerData.paymentPerHour = parseFloat(formData.paymentPerHour);
+        registerData.preferredLocation = formData.preferredLocation;
+        registerData.nextAvailableDate = formData.nextAvailableDate;
+      }
+
       const response = await fetch(`${apiBase}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          phone: formData.phone,
-          otp: formData.otp,
-          name: formData.name,
-          password: formData.password,
-          role: formData.role,
-          ...(formData.role === 'worker' && {
-            jobCategory: formData.jobCategory,
-            paymentPerHour: parseFloat(formData.paymentPerHour),
-            preferredLocation: formData.preferredLocation,
-            nextAvailableDate: formData.nextAvailableDate,
-          }),
-        }),
+        body: JSON.stringify(registerData),
       });
 
       if (!response.ok) {

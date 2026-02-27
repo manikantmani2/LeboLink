@@ -210,7 +210,7 @@ export class AuthService {
   async register(body: {
     name: string;
     email: string;
-    phone: string;
+    phone?: string;
     password: string;
     otp: string;
     role: 'customer' | 'worker';
@@ -237,12 +237,16 @@ export class AuthService {
 
     // Prepare user data
     const userData: any = {
-      phone: body.phone,
       name: body.name,
       email: body.email,
       password: hashedPassword,
       role: body.role,
     };
+
+    // Add phone if provided
+    if (body.phone) {
+      userData.phone = body.phone;
+    }
 
     // Add worker-specific fields if worker role
     if (body.role === 'worker') {
@@ -260,7 +264,7 @@ export class AuthService {
       token: 'jwt-token-placeholder',
       userId: user._id?.toString?.() ?? '',
       email: user.email,
-      phone: user.phone,
+      phone: user.phone || null,
       name: user.name,
       role: user.role,
     };
