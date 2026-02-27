@@ -27,6 +27,7 @@ function LoginPageContent() {
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState({ contact: '', password: '' });
+  const [useOtpFallback, setUseOtpFallback] = useState(false);
 
   const currentTheme = theme;
 
@@ -45,6 +46,22 @@ function LoginPageContent() {
       setLoading(false);
       return;
     }
+
+    // Validate Indian phone if using phone method
+    if (!isEmailMethod) {
+      const cleanPhone = formData.phone.replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        setError('Phone number must be 10 digits');
+        setLoading(false);
+        return;
+      }
+      if (!/^[6-9]/.test(cleanPhone)) {
+        setError('Indian phone number must start with 6, 7, 8, or 9');
+        setLoading(false);
+        return;
+      }
+    }
+
     if (!formData.password) {
       setValidationErrors((prev) => ({ ...prev, password: 'Password cannot be blank.' }));
       setLoading(false);
@@ -100,6 +117,21 @@ function LoginPageContent() {
       setError(`${method === 'email' ? 'Email' : 'Phone'} is required`);
       setLoading(false);
       return;
+    }
+
+    // Validate Indian phone if using phone method
+    if (method === 'phone') {
+      const cleanPhone = formData.phone.replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        setError('Phone number must be 10 digits');
+        setLoading(false);
+        return;
+      }
+      if (!/^[6-9]/.test(cleanPhone)) {
+        setError('Indian phone number must start with 6, 7, 8, or 9');
+        setLoading(false);
+        return;
+      }
     }
 
     try {
@@ -334,18 +366,72 @@ function LoginPageContent() {
                 onSubmit={handleSendOtp}
                 className="space-y-4"
               >
+                <div className="flex gap-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setMethod('email')}
+                    className={`flex-1 py-2 px-3 rounded-xl font-semibold transition-all ${
+                      method === 'email'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
+                    }`}
+                  >
+                    📧 Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMethod('phone')}
+                    className={`flex-1 py-2 px-3 rounded-xl font-semibold transition-all ${
+                      method === 'phone'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
+                    }`}
+                  >
+                    📱 Phone
+                  </button>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Email Address
+                    {method === 'email' ? 'Email Address' : 'Phone Number (10 digits)'}
                   </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className={`w-full px-4 py-2 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2`}
-                    placeholder="your.email@example.com"
-                    required
-                  />
+                  {method === 'email' ? (
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className={`w-full px-4 py-2 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2`}
+                      placeholder="your.email@example.com"
+                      required
+                    />
+                  ) : (
+                    <div>
+                      <input
+                        type="tel"
+                        value={formData.phone}
+                        onChange={(e) => {
+                          // Only allow digits and formatting characters
+                          const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          let formatted = '';
+                          if (onlyDigits.length > 0) {
+                            if (onlyDigits.length <= 5) {
+                              formatted = onlyDigits;
+                            } else if (onlyDigits.length <= 8) {
+                              formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5);
+                            } else {
+                              formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5, 8) + ' ' + onlyDigits.slice(8);
+                            }
+                          }
+                          setFormData({ ...formData, phone: formatted });
+                        }}
+                        className={`w-full px-4 py-2 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2`}
+                        placeholder="98765 43210"
+                        maxLength="14"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Valid Indian numbers start with 6-9</p>
+                    </div>
+                  )}
                 </div>
 
                 <motion.button
@@ -378,7 +464,7 @@ function LoginPageContent() {
               >
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
-                    Enter 6-Digit OTP sent to {formData.email}
+                    Enter 6-Digit OTP sent to {method === 'email' ? formData.email : formData.phone}
                   </label>
                   <input
                     type="text"

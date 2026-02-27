@@ -45,8 +45,13 @@ export default function RegisterPage() {
         return;
       }
     } else {
-      if (!formData.phone || formData.phone.replace(/\D/g, '').length < 10) {
-        setError('Valid phone number is required (at least 10 digits)');
+      const cleanPhone = formData.phone.replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        setError('Phone number must be 10 digits');
+        return;
+      }
+      if (!/^[6-9]/.test(cleanPhone)) {
+        setError('Indian phone number must start with 6, 7, 8, or 9');
         return;
       }
     }
@@ -68,14 +73,15 @@ export default function RegisterPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || `Failed to send ${authMethod === 'email' ? 'email' : 'SMS'}`);
+        throw new Error(data.message || `Failed to send ${authMethod === 'email' ? 'email' : 'SMS'} code`);
       }
 
       setDevOtp(data.devCode || data.otp);
       setStep('otp');
     } catch (err: any) {
       console.error('OTP Send Error:', err);
-      setError(err.message || `Failed to send verification code. Please try again.`);
+      const errorMsg = err.message || `Failed to send ${authMethod === 'email' ? 'email' : 'SMS'} code`;
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -308,7 +314,7 @@ export default function RegisterPage() {
             <motion.form onSubmit={handleSendOtp} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {authMethod === 'email' ? 'Email Address' : 'Phone Number'}
+                  {authMethod === 'email' ? 'Email Address' : 'Phone Number (10 digits)'}
                 </label>
                 {authMethod === 'email' ? (
                   <input
@@ -320,14 +326,32 @@ export default function RegisterPage() {
                     required
                   />
                 ) : (
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    placeholder="+1 (555) 000-0000"
-                    required
-                  />
+                  <div>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => {
+                        // Only allow digits and formatting characters
+                        const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        let formatted = '';
+                        if (onlyDigits.length > 0) {
+                          if (onlyDigits.length <= 5) {
+                            formatted = onlyDigits;
+                          } else if (onlyDigits.length <= 8) {
+                            formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5);
+                          } else {
+                            formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5, 8) + ' ' + onlyDigits.slice(8);
+                          }
+                        }
+                        setFormData({ ...formData, phone: formatted });
+                      }}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      placeholder="98765 43210"
+                      maxLength="14"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Valid Indian numbers start with 6-9</p>
+                  </div>
                 )}
               </div>
 

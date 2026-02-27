@@ -92,27 +92,29 @@ export class AuthService {
   async sendSmsOtp(phone: string) {
     if (!phone) throw new BadRequestException('Phone is required to send OTP');
     
-    // Validate phone format (basic)
-    if (!this.isValidPhone(phone)) {
-      throw new BadRequestException('Please provide a valid phone number');
+    // Validate phone format (Indian: 10 digits, starts with 6-9)
+    if (!this.isValidIndianPhone(phone)) {
+      throw new BadRequestException('Please provide a valid Indian phone number (10 digits, starting with 6-9)');
     }
 
     const code = this.generateCode();
     const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
-    this.store.set(`phone_${phone}`, { code, expiresAt });
+    // Store with cleaned phone number (digits only)
+    const cleanPhone = phone.replace(/\D/g, '');
+    this.store.set(`phone_${cleanPhone}`, { code, expiresAt });
 
     // Try to send via SMS
-    const smsSent = await this.sendVerificationSms(phone, code);
+    const smsSent = await this.sendVerificationSms(cleanPhone, code);
 
     // If SMS failed in production, throw error; in dev, allow fallback
     if (!smsSent && process.env.NODE_ENV === 'production') {
       throw new BadRequestException('Failed to send verification code to phone. Please try again.');
     }
 
-    this.logger.log(`SMS OTP sent to ${phone} - Code: ${code}`);
+    this.logger.log(`SMS OTP sent to ${cleanPhone} - Code: ${code}`);
     return { 
       success: true, 
-      phone,
+      phone: cleanPhone,
       method: 'sms',
       ...(process.env.NODE_ENV !== 'production' && { devCode: code })
     };
@@ -121,23 +123,24 @@ export class AuthService {
   async verifySmsOtp(phone: string, otp: string) {
     if (!phone || !otp) throw new BadRequestException('Phone and OTP required');
     
-    const entry = this.store.get(`phone_${phone}`);
-    if (!entry) throw new BadRequestException('OTP not requested');
+    const cleanPhone = phone.replace(/\D/g, '');
+    const entry = this.store.get(`phone_${cleanPhone}`);
+    if (!entry) throw new BadRequestException('OTP not requested or expired');
     if (Date.now() > entry.expiresAt) {
-      this.store.delete(`phone_${phone}`);
-      throw new BadRequestException('OTP expired');
+      this.store.delete(`phone_${cleanPhone}`);
+      throw new BadRequestException('OTP expired. Please request a new one.');
     }
     if (entry.code !== otp) throw new BadRequestException('Invalid OTP');
 
-    this.store.delete(`phone_${phone}`);
-    const user = await this.usersService.findOrCreateByPhone(phone);
+    this.store.delete(`phone_${cleanPhone}`);
+    const user = await this.usersService.findOrCreateByPhone(cleanPhone);
     
     // Check if user has completed profile
     const hasProfile = !!(user.name && user.role);
     
     return { 
       success: true, 
-      phone, 
+      phone: cleanPhone, 
       userId: user._id?.toString?.() ?? '', 
       token: 'jwt-token-placeholder',
       hasProfile,
@@ -344,6 +347,16 @@ export class AuthService {
     return phoneRegex.test(phone.replace(/[^\d]/g, ''));
   }
 
+  private isValidIndianPhone(phone: string): boolean {
+    // Indian phone validation: exactly 10 digits, starting with 6-9
+    const cleanPhone = phone.replace(/[^\d]/g, '');
+    if (cleanPhone.length !== 10) {
+      return false;
+    }
+    // First digit must be 6, 7, 8, or 9
+    return /^[6-9]\d{9}$/.test(cleanPhone);
+  }
+
   async verifyAdminOtp(email: string, otp: string) {
     if (!email || !otp) throw new BadRequestException('Email and OTP required');
     
@@ -395,10 +408,12 @@ export class AuthService {
 
     // Verify OTP based on email or phone
     let verificationKey = '';
+    let cleanPhone = '';
     if (body.email) {
       verificationKey = `email_${body.email}`;
     } else if (body.phone) {
-      verificationKey = `phone_${body.phone}`;
+      cleanPhone = body.phone.replace(/\D/g, '');
+      verificationKey = `phone_${cleanPhone}`;
     }
 
     const entry = this.store.get(verificationKey);
@@ -426,9 +441,9 @@ export class AuthService {
       userData.email = body.email;
     }
 
-    // Add phone if provided
+    // Add phone if provided (use cleaned version)
     if (body.phone) {
-      userData.phone = body.phone;
+      userData.phone = cleanPhone || body.phone.replace(/\D/g, '');
     }
 
     // Add worker-specific fields if worker role
@@ -468,7 +483,8 @@ export class AuthService {
     if (body.email) {
       user = await this.usersService.findByEmail(body.email);
     } else if (body.phone) {
-      user = await this.usersService.findByPhone(body.phone);
+      const cleanPhone = body.phone.replace(/\D/g, '');
+      user = await this.usersService.findByPhone(cleanPhone);
     }
 
     if (!user) throw new BadRequestException('Invalid credentials');
