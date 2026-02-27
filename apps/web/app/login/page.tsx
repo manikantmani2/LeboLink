@@ -13,31 +13,35 @@ function LoginPageContent() {
   const fromLanding = searchParams.get('from') === 'landing';
   const { login } = useAuth();
   const { theme } = useTheme();
-  const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
+  const [step, setStep] = useState<'method' | 'credentials' | 'otp'>('method');
+  const [method, setMethod] = useState<'email' | 'phone' | 'password'>('email');
   const [formData, setFormData] = useState({
     email: '',
+    phone: '',
     password: '',
     otp: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [devOtp, setDevOtp] = useState('');
-  const [useOtpFallback, setUseOtpFallback] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [validationErrors, setValidationErrors] = useState({ email: '', password: '' });
+  const [validationErrors, setValidationErrors] = useState({ contact: '', password: '' });
 
   const currentTheme = theme;
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setValidationErrors({ email: '', password: '' });
+    setValidationErrors({ contact: '', password: '' });
     setLoading(true);
 
     // Validation
-    if (!formData.email) {
-      setValidationErrors((prev) => ({ ...prev, email: 'Email cannot be blank.' }));
+    const isEmailMethod = method === 'email';
+    const contact = isEmailMethod ? formData.email : formData.phone;
+    
+    if (!contact) {
+      setValidationErrors((prev) => ({ ...prev, contact: `${isEmailMethod ? 'Email' : 'Phone'} cannot be blank.` }));
       setLoading(false);
       return;
     }
@@ -49,13 +53,14 @@ function LoginPageContent() {
 
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const loginData = isEmailMethod 
+        ? { email: formData.email, password: formData.password }
+        : { phone: formData.phone, password: formData.password };
+
       const response = await fetch(`${apiBase}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+        body: JSON.stringify(loginData),
       });
 
       const data = await response.json();
@@ -66,7 +71,8 @@ function LoginPageContent() {
 
       login(data.token, data.userId, {
         id: data.userId,
-        email: formData.email,
+        email: data.email || formData.email,
+        phone: data.phone || formData.phone,
         role: (data.role || 'customer') as 'customer' | 'worker',
         name: data.name,
       });
@@ -77,6 +83,7 @@ function LoginPageContent() {
         router.push(data.role === 'worker' ? '/feed' : '/home');
       }
     } catch (err: any) {
+      console.error('Login Error:', err);
       setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
@@ -88,12 +95,23 @@ function LoginPageContent() {
     setError('');
     setLoading(true);
 
+    const contact = method === 'email' ? formData.email : formData.phone;
+    if (!contact) {
+      setError(`${method === 'email' ? 'Email' : 'Phone'} is required`);
+      setLoading(false);
+      return;
+    }
+
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const requestBody = method === 'email' 
+        ? { email: formData.email }
+        : { phone: formData.phone };
+
       const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formData.email }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -106,7 +124,7 @@ function LoginPageContent() {
       setStep('otp');
     } catch (err: any) {
       console.error('OTP Send Error:', err);
-      setError(err.message || 'Failed to send verification code. Please check your email address and try again.');
+      setError(err.message || 'Failed to send verification code. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -119,13 +137,14 @@ function LoginPageContent() {
 
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const requestBody = method === 'email'
+        ? { email: formData.email, otp: formData.otp }
+        : { phone: formData.phone, otp: formData.otp };
+
       const response = await fetch(`${apiBase}/api/v1/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          otp: formData.otp,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -136,7 +155,8 @@ function LoginPageContent() {
 
       login(data.token, data.userId, {
         id: data.userId,
-        email: formData.email,
+        email: data.email || formData.email,
+        phone: data.phone || formData.phone,
         role: (data.role || 'customer') as 'customer' | 'worker',
         name: data.name,
       });
@@ -147,6 +167,7 @@ function LoginPageContent() {
         router.push(data.role === 'worker' ? '/feed' : '/home');
       }
     } catch (err: any) {
+      console.error('OTP Verify Error:', err);
       setError(err.message || 'OTP verification failed');
     } finally {
       setLoading(false);
