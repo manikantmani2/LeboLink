@@ -70,6 +70,12 @@ export default function RegisterPage() {
         body: JSON.stringify(requestBody),
       });
 
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server error: Expected JSON response but got ${contentType || 'unknown type'}`);
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
