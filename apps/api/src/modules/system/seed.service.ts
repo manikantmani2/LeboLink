@@ -136,11 +136,28 @@ export class SeedService implements OnModuleInit {
         }
       }
 
+      // Create one default EMAIL login user for quick testing
+      const defaultEmail = 'demo@lebolink.com';
+      const defaultEmailUser = await this.userModel.findOne({ email: defaultEmail });
+      if (!defaultEmailUser) {
+        await this.userModel.create({
+          email: defaultEmail,
+          phone: '9876543211',
+          name: 'Demo Customer',
+          role: 'customer',
+          password: hashedPassword123,
+          accountStatus: 'active',
+        });
+        console.log(`✓ Default email user created: ${defaultEmail}`);
+      }
+
       console.log('\n[SEED] Test Login Credentials:');
       console.log('┏─ WORKERS (Password: Test@1234)');
       workers.forEach(w => console.log(`┃  Phone: ${w.phone} (${w.name})`));
       console.log('┣─ CUSTOMERS (Password: Test@1234)');
       customers.forEach(c => console.log(`┃  Phone: ${c.phone} (${c.name})`));
+      console.log('┣─ DEFAULT EMAIL USER (Password: Test@1234)');
+      console.log('┃  Email: demo@lebolink.com (Demo Customer)');
       console.log('┗─ ADMIN (Password: Hello@&1234)');
       console.log('   Email: admin@lebolink.com (Admin User)\n');
 

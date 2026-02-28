@@ -13,8 +13,8 @@ function LoginPageContent() {
   const fromLanding = searchParams.get('from') === 'landing';
   const { login } = useAuth();
   const { theme } = useTheme();
-  const [step, setStep] = useState<'method' | 'credentials' | 'otp'>('method');
-  const [method, setMethod] = useState<'email' | 'phone' | 'password'>('email');
+  const [step, setStep] = useState<'method' | 'credentials' | 'otp'>('credentials');
+  const [method, setMethod] = useState<'email' | 'phone'>('email');
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
@@ -263,7 +263,41 @@ function LoginPageContent() {
               onSubmit={handlePasswordLogin}
               className="space-y-3"
             >
+              <div className="flex gap-3 mb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMethod('email');
+                    setValidationErrors({ contact: '', password: '' });
+                    setError('');
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-xl font-semibold transition-all ${
+                    method === 'email'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
+                  }`}
+                >
+                  📧 Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMethod('phone');
+                    setValidationErrors({ contact: '', password: '' });
+                    setError('');
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-xl font-semibold transition-all ${
+                    method === 'phone'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
+                  }`}
+                >
+                  📱 Phone
+                </button>
+              </div>
+
               <div>
+                {method === 'email' ? (
                   <input
                     type="email"
                     value={formData.email}
@@ -276,10 +310,36 @@ function LoginPageContent() {
                     } bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 ${theme?.border || 'focus:border-blue-500'} outline-none transition-all border-b-2 border-white/20`}
                     placeholder="Enter Email Address *"
                   />
-                  {validationErrors.contact && method === 'email' && (
-                    <p className="text-red-500 text-xs mt-1">{validationErrors.contact}</p>
-                  )}
-                </div>
+                ) : (
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => {
+                      const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      let formatted = '';
+                      if (onlyDigits.length > 0) {
+                        if (onlyDigits.length <= 5) {
+                          formatted = onlyDigits;
+                        } else if (onlyDigits.length <= 8) {
+                          formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5);
+                        } else {
+                          formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5, 8) + ' ' + onlyDigits.slice(8);
+                        }
+                      }
+                      setFormData({ ...formData, phone: formatted });
+                      setValidationErrors((prev) => ({ ...prev, contact: '' }));
+                    }}
+                    className={`w-full px-4 py-3 border ${
+                      validationErrors.contact && method === 'phone' ? 'border-red-400' : 'border-gray-300/50'
+                    } bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 ${theme?.border || 'focus:border-blue-500'} outline-none transition-all border-b-2 border-white/20`}
+                    placeholder="Enter Phone Number * (98765 43210)"
+                    maxLength={14}
+                  />
+                )}
+                {validationErrors.contact && (
+                  <p className="text-red-500 text-xs mt-1">{validationErrors.contact}</p>
+                )}
+              </div>
 
                 <div className="relative">
                   <input
