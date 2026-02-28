@@ -7,6 +7,7 @@ import * as nodemailer from 'nodemailer';
 const twilio = require('twilio');
 
 type OtpEntry = { code: string; expiresAt: number };
+type SmsSendResult = { success: true } | { success: false; message: string };
 
 // Global store to persist across hot-reloads
 const globalOtpStore = new Map<string, OtpEntry>();
@@ -114,11 +115,11 @@ export class AuthService {
     this.store.set(`phone_${cleanPhone}`, { code, expiresAt });
 
     // Try to send via SMS
-    const smsSent = await this.sendVerificationSms(cleanPhone, code);
+    const smsResult = await this.sendVerificationSms(cleanPhone, code);
 
     // If SMS failed in production, throw error; in dev, allow fallback
-    if (!smsSent && process.env.NODE_ENV === 'production') {
-      throw new BadRequestException('Failed to send verification code to phone. Please try again.');
+    if (!smsResult.success && process.env.NODE_ENV === 'production') {
+      throw new BadRequestException(smsResult.message);
     }
 
     this.logger.log(`SMS OTP sent to ${cleanPhone} - Code: ${code}`);
@@ -319,30 +320,66 @@ export class AuthService {
     return process.env.NODE_ENV !== 'production';
   }
 
-  private async sendVerificationSms(phone: string, code: string): Promise<boolean> {
+  private async sendVerificationSms(phone: string, code: string): Promise<SmsSendResult> {
     // Send SMS via Twilio if configured
     if (this.twilioClient && process.env.TWILIO_PHONE) {
       try {
-        // Format phone number for Twilio (add +91 for India)
-        const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+        const formattedPhone = this.toIndianE164(phone);
+        const formattedFrom = process.env.TWILIO_PHONE.startsWith('+')
+          ? process.env.TWILIO_PHONE
+          : `+${process.env.TWILIO_PHONE.replace(/\D/g, '')}`;
         
         await this.twilioClient.messages.create({
-          from: process.env.TWILIO_PHONE,
+          from: formattedFrom,
           to: formattedPhone,
           body: `Your LeboLink verification code is: ${code}\n\nThis code expires in 15 minutes.\n\nNever share this code with anyone.`
         });
         
         this.logger.log(`SMS successfully sent to ${formattedPhone}`);
-        return true;
+        return { success: true };
       } catch (error: any) {
-        this.logger.error(`Failed to send SMS to ${phone}: ${error.message}`);
-        return false;
+        const errorCode = error?.code;
+        const errorMessage = error?.message || 'Unknown SMS provider error';
+        this.logger.error(`Failed to send SMS to ${phone}: [${errorCode ?? 'N/A'}] ${errorMessage}`);
+
+        if (errorCode === 21211) {
+          return { success: false, message: 'Invalid phone number format. Please use a valid Indian mobile number.' };
+        }
+        if (errorCode === 21608) {
+          return { success: false, message: 'This destination number is not enabled in Twilio trial account. Verify this phone in Twilio or upgrade account.' };
+        }
+        if (errorCode === 21408) {
+          return { success: false, message: 'SMS permissions for this country are disabled in Twilio. Enable India (+91) in Twilio Geographic Permissions.' };
+        }
+
+        return { success: false, message: 'Failed to send verification code to phone. Please try again.' };
       }
     }
 
     // Development mode: just log the code
     this.logger.warn(`[DEV] SMS not configured. Code for ${phone}: ${code}`);
-    return process.env.NODE_ENV !== 'production';
+    if (process.env.NODE_ENV !== 'production') {
+      return { success: true };
+    }
+
+    return {
+      success: false,
+      message: 'SMS service is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_PHONE on the API service.'
+    };
+  }
+
+  private toIndianE164(phone: string): string {
+    const digits = phone.replace(/\D/g, '');
+
+    if (digits.length === 10) {
+      return `+91${digits}`;
+    }
+
+    if (digits.length === 12 && digits.startsWith('91')) {
+      return `+${digits}`;
+    }
+
+    return phone.startsWith('+') ? phone : `+${digits}`;
   }
 
   private isValidEmail(email: string): boolean {
