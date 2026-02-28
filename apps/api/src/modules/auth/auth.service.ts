@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import * as nodemailer from 'nodemailer';
-import * as twilio from 'twilio';
+import twilio from 'twilio';
 
 type OtpEntry = { code: string; expiresAt: number };
 

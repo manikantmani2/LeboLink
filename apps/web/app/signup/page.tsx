@@ -19,6 +19,7 @@ export default function SignupPage() {
   const [devOtp, setDevOtp] = useState('');
   const [formData, setFormData] = useState({
     email: '',
+    phone: '',
     otp: '',
     name: '',
     password: '',

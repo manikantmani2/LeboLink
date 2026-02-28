@@ -269,15 +269,15 @@ function LoginPageContent() {
                     value={formData.email}
                     onChange={(e) => {
                       setFormData({ ...formData, email: e.target.value });
-                      setValidationErrors((prev) => ({ ...prev, email: '' }));
+                      setValidationErrors((prev) => ({ ...prev, contact: '' }));
                     }}
                     className={`w-full px-4 py-3 border ${
-                      validationErrors.email ? 'border-red-400' : 'border-gray-300/50'
+                      validationErrors.contact && method === 'email' ? 'border-red-400' : 'border-gray-300/50'
                     } bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 ${theme?.border || 'focus:border-blue-500'} outline-none transition-all border-b-2 border-white/20`}
                     placeholder="Enter Email Address *"
                   />
-                  {validationErrors.email && (
-                    <p className="text-red-500 text-xs mt-1">{validationErrors.email}</p>
+                  {validationErrors.contact && method === 'email' && (
+                    <p className="text-red-500 text-xs mt-1">{validationErrors.contact}</p>
                   )}
                 </div>
 
@@ -426,7 +426,7 @@ function LoginPageContent() {
                         }}
                         className={`w-full px-4 py-2 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2`}
                         placeholder="98765 43210"
-                        maxLength="14"
+                        maxLength={14}
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">Valid Indian numbers start with 6-9</p>
