@@ -2,7 +2,9 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import * as nodemailer from 'nodemailer';
-import twilio from 'twilio';
+
+// Twilio uses CommonJS export, so we use require
+const twilio = require('twilio');
 
 type OtpEntry = { code: string; expiresAt: number };
 
@@ -13,7 +15,7 @@ const globalOtpStore = new Map<string, OtpEntry>();
 export class AuthService {
   private store: Map<string, OtpEntry> = globalOtpStore;
   private emailTransporter: nodemailer.Transporter | null = null;
-  private twilioClient: twilio.Twilio | null = null;
+  private twilioClient: any = null;
   private logger = new Logger('AuthService');
 
   constructor(private readonly usersService: UsersService) {
