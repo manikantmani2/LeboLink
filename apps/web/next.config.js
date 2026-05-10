@@ -3,6 +3,8 @@ const withPWA = require('next-pwa')({
   disable: process.env.NODE_ENV === 'development',
 });
 
+const defaultProductionApiBase = 'https://lebolink-api.onrender.com';
+
 module.exports = withPWA({
   reactStrictMode: true,
   swcMinify: true,
@@ -10,14 +12,12 @@ module.exports = withPWA({
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   async rewrites() {
-    if (!process.env.NEXT_PUBLIC_API_BASE_URL) {
-      return [];
-    }
+    const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || defaultProductionApiBase).replace(/\/$/, '');
 
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, '')}/api/:path*`,
+        destination: `${apiBase}/api/:path*`,
       },
     ];
   },

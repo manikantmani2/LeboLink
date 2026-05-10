@@ -1,4 +1,5 @@
 const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || '';
+const defaultProductionApiBase = 'https://lebolink-api.onrender.com';
 const placeholderApiBases = [
   'https://api.lebolink.com',
   'https://your-api-url.com',
@@ -10,10 +11,13 @@ export function getApiBase() {
   if (runtimeApiBase) {
     return runtimeApiBase;
   }
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
+  if (process.env.NODE_ENV === 'production') {
+    return '';
   }
-  return '';
+  if (typeof window !== 'undefined') {
+    return 'http://localhost:3001';
+  }
+  return 'http://localhost:3001';
 }
 
 export const apiBase = getApiBase();
@@ -26,7 +30,7 @@ type Options = {
 };
 
 export async function apiFetch<T>({ path, method = 'GET', body, headers = {} }: Options): Promise<T> {
-  const base = runtimeApiBase || '';
+  const base = runtimeApiBase || (process.env.NODE_ENV === 'production' ? defaultProductionApiBase : getApiBase());
   const url = `${base}${path}`;
 
   const res = await fetch(url, {
