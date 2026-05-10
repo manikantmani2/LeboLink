@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
-import { getApiBase } from '@/lib/api';
+import { getApiBase, parseResponseBody } from '@/lib/api';
 import { useTheme } from '@/lib/theme-context';
 
 interface LoginModalProps {
@@ -51,12 +51,10 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         body: JSON.stringify({ email: formData.email, password: formData.password }),
       });
 
+      const data = await parseResponseBody<any>(response);
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Login failed');
+        throw new Error(data.message || 'Login failed');
       }
-
-      const data = await response.json();
       const userData = {
         id: data.userId,
         email: data.email,

@@ -3,7 +3,15 @@ const withPWA = require('next-pwa')({
   disable: process.env.NODE_ENV === 'development',
 });
 
-const defaultProductionApiBase = 'https://lebolink.onrender.com';
+const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') ||
+  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001');
+
+if (process.env.NODE_ENV === 'production' && !apiBase) {
+  throw new Error(
+    'Missing NEXT_PUBLIC_API_BASE_URL environment variable during build. ' +
+      'Set NEXT_PUBLIC_API_BASE_URL to your deployed backend API URL in Vercel project settings.'
+  );
+}
 
 module.exports = withPWA({
   reactStrictMode: true,
@@ -12,8 +20,6 @@ module.exports = withPWA({
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   async rewrites() {
-    const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || defaultProductionApiBase).replace(/\/$/, '');
-
     return [
       {
         source: '/api/:path*',

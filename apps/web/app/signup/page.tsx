@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth';
-import { getApiBase } from '@/lib/api';
+import { getApiBase, parseResponseBody } from '@/lib/api';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -109,12 +109,11 @@ export default function SignupPage() {
         body: JSON.stringify(registerData),
       });
 
+      const data = await parseResponseBody<any>(response);
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || 'Registration failed');
+        throw new Error(data.message || 'Registration failed');
       }
 
-      const data = await response.json();
       const userData = {
         id: data.userId,
         phone: data.phone,

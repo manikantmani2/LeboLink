@@ -1,5 +1,4 @@
 const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || '';
-const defaultProductionApiBase = 'https://lebolink.onrender.com';
 const placeholderApiBases = [
   'https://api.lebolink.com',
   'https://your-api-url.com',
@@ -7,17 +6,21 @@ const placeholderApiBases = [
 ];
 const runtimeApiBase = placeholderApiBases.includes(rawApiBase) ? '' : rawApiBase;
 
-export function getApiBase() {
+function requireApiBase() {
   if (runtimeApiBase) {
     return runtimeApiBase;
   }
   if (process.env.NODE_ENV === 'production') {
-    return defaultProductionApiBase;
-  }
-  if (typeof window !== 'undefined') {
-    return 'http://localhost:3001';
+    throw new Error(
+      'Missing NEXT_PUBLIC_API_BASE_URL in Vercel environment variables. ' +
+        'Set NEXT_PUBLIC_API_BASE_URL to your deployed backend API URL, for example https://lebolink-api.onrender.com.'
+    );
   }
   return 'http://localhost:3001';
+}
+
+export function getApiBase() {
+  return requireApiBase();
 }
 
 export const apiBase = getApiBase();
@@ -30,7 +33,7 @@ type Options = {
 };
 
 export async function apiFetch<T>({ path, method = 'GET', body, headers = {} }: Options): Promise<T> {
-  const base = runtimeApiBase || (process.env.NODE_ENV === 'production' ? defaultProductionApiBase : getApiBase());
+  const base = requireApiBase();
   const url = `${base}${path}`;
 
   const res = await fetch(url, {
@@ -50,4 +53,16 @@ export async function apiFetch<T>({ path, method = 'GET', body, headers = {} }: 
   }
 
   return res.json();
+}
+
+export async function parseResponseBody<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  if (!text) {
+    return {} as T;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return { message: text || response.statusText } as unknown as T;
+  }
 }

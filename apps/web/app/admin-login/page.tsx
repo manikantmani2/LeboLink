@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { getApiBase } from '@/lib/api';
+import { getApiBase, parseResponseBody } from '@/lib/api';
 import { motion } from 'framer-motion';
 
 export default function AdminLoginPage() {
@@ -32,7 +32,7 @@ export default function AdminLoginPage() {
         }),
       });
 
-      const data = await response.json();
+      const data = await parseResponseBody<any>(response);
 
       if (!response.ok) {
         throw new Error(data.message || 'Invalid credentials');

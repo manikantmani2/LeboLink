@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme-context';
-import { getApiBase } from '@/lib/api';
+import { getApiBase, parseResponseBody } from '@/lib/api';
 import ThemeSettings from '@/components/ThemeSettings';
 
 function LoginForm() {
@@ -70,8 +70,7 @@ function LoginForm() {
         body: JSON.stringify(loginData),
       });
 
-      const data = await response.json();
-
+      const data = await parseResponseBody<any>(response);
       if (!response.ok) {
         throw new Error(data.message || 'Invalid credentials');
       }
