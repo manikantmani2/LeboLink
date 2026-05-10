@@ -6,7 +6,6 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY package-lock.json ./
 COPY apps/api/package*.json ./apps/api/
 COPY packages/shared/package*.json ./packages/shared/
 
@@ -32,7 +31,6 @@ RUN apk add --no-cache dumb-init curl ca-certificates
 
 # Copy package files
 COPY package*.json ./
-COPY package-lock.json ./
 COPY apps/api/package*.json ./apps/api/
 COPY packages/shared/package*.json ./packages/shared/
 
