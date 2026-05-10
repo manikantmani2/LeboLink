@@ -1,24 +1,25 @@
 services:
   - type: web
     name: lebolink-api
-    env: node
+    runtime: docker
     region: ohio
     plan: free
-    buildCommand: npm install && npm run build:api
-    startCommand: npm run start:api
+    dockerfilePath: apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 3001
       - key: MONGODB_URI
-        scope: all
+        sync: false
       - key: JWT_SECRET
-        scope: all
+        generateValue: true
       - key: STRIPE_SECRET_KEY
-        scope: all
+        sync: false
       - key: STRIPE_WEBHOOK_SECRET
-        scope: all
+        sync: false
       - key: BOOKING_FLAT_FEE
         value: "499"
       - key: BOOKING_CURRENCY
