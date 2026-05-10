@@ -1,5 +1,5 @@
 const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || '';
-const defaultProductionApiBase = 'https://lebolink-api.onrender.com';
+const defaultProductionApiBase = 'https://lebolink.onrender.com';
 const placeholderApiBases = [
   'https://api.lebolink.com',
   'https://your-api-url.com',
@@ -12,7 +12,7 @@ export function getApiBase() {
     return runtimeApiBase;
   }
   if (process.env.NODE_ENV === 'production') {
-    return '';
+    return defaultProductionApiBase;
   }
   if (typeof window !== 'undefined') {
     return 'http://localhost:3001';

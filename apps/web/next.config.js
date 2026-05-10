@@ -3,7 +3,7 @@ const withPWA = require('next-pwa')({
   disable: process.env.NODE_ENV === 'development',
 });
 
-const defaultProductionApiBase = 'https://lebolink-api.onrender.com';
+const defaultProductionApiBase = 'https://lebolink.onrender.com';
 
 module.exports = withPWA({
   reactStrictMode: true,
