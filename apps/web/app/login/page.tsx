@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme-context';
+import { getApiBase } from '@/lib/api';
 import ThemeSettings from '@/components/ThemeSettings';
 
 function LoginForm() {
@@ -58,7 +59,7 @@ function LoginForm() {
     }
 
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const apiBase = getApiBase();
       const loginData = isEmailMethod
         ? { email: formData.email, password: formData.password }
         : { phone: formData.phone, password: formData.password };
@@ -156,7 +157,7 @@ function LoginForm() {
               {loading ? 'Logging in...' : 'Login'}
             </motion.button>
 
-            <p className="text-center text-sm text-gray-300 mt-2">Don't have an account? <button onClick={() => router.push('/register')} className="text-white font-semibold">Create Account</button></p>
+            <p className="text-center text-sm text-gray-300 mt-2">Don't have an account? <button onClick={() => router.push('/signup')} className="text-white font-semibold">Create Account</button></p>
           </motion.form>
         </motion.div>
       </div>

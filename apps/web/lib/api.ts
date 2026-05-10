@@ -1,4 +1,22 @@
-export const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+const rawApiBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || '';
+const placeholderApiBases = [
+  'https://api.lebolink.com',
+  'https://your-api-url.com',
+  'https://api.yourdomain.com',
+];
+const runtimeApiBase = placeholderApiBases.includes(rawApiBase) ? '' : rawApiBase;
+
+export function getApiBase() {
+  if (runtimeApiBase) {
+    return runtimeApiBase;
+  }
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return '';
+}
+
+export const apiBase = getApiBase();
 
 type Options = {
   path: string;
@@ -8,37 +26,24 @@ type Options = {
 };
 
 export async function apiFetch<T>({ path, method = 'GET', body, headers = {} }: Options): Promise<T> {
-  const bases = Array.from(
-    new Set([
-      apiBase,
-      'http://localhost:3001',
-      'http://127.0.0.1:3001',
-    ].filter(Boolean))
-  );
+  const base = runtimeApiBase || '';
+  const url = `${base}${path}`;
 
-  let lastErr: any;
-  for (const base of bases) {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    let errorMsg = text || res.statusText;
     try {
-      const res = await fetch(`${base}${path}`, {
-        method,
-        headers: { 'Content-Type': 'application/json', ...headers },
-        body: body ? JSON.stringify(body) : undefined,
-        mode: 'cors',
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        let errorMsg = text || res.statusText;
-        try {
-          const json = JSON.parse(text);
-          errorMsg = json.message || json.error || errorMsg;
-        } catch {}
-        throw new Error(errorMsg);
-      }
-      return res.json();
-    } catch (err) {
-      lastErr = err;
-      // try next base
-    }
+      const json = JSON.parse(text);
+      errorMsg = json.message || json.error || errorMsg;
+    } catch {}
+    throw new Error(errorMsg);
   }
-  throw new Error((lastErr as Error)?.message || 'Failed to reach API');
+
+  return res.json();
 }

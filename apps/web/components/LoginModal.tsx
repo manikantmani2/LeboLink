@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
+import { getApiBase } from '@/lib/api';
 import { useTheme } from '@/lib/theme-context';
 
 interface LoginModalProps {
@@ -42,7 +43,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     setLoading(true);
     setError('');
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const apiBase = getApiBase();
       const endpoint = isAdminMode ? `${apiBase}/api/v1/auth/admin-login` : `${apiBase}/api/v1/auth/login`;
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -227,7 +228,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     <button
                       onClick={() => {
                         onClose();
-                        router.push('/register');
+                        router.push('/signup');
                       }}
                       className="text-white font-semibold hover:opacity-80 transition-all"
                     >

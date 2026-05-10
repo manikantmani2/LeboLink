@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: lebolink-api
+    env: node
+    region: ohio
+    plan: free
+    buildCommand: npm install && npm run build:api
+    startCommand: npm run start:api
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: MONGODB_URI
+        scope: all
+      - key: JWT_SECRET
+        scope: all
+      - key: STRIPE_SECRET_KEY
+        scope: all
+      - key: STRIPE_WEBHOOK_SECRET
+        scope: all
+      - key: BOOKING_FLAT_FEE
+        value: "499"
+      - key: BOOKING_CURRENCY
+        value: INR

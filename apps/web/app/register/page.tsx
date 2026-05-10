@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth';
+import { getApiBase } from '@/lib/api';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -85,7 +86,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+      const apiBase = getApiBase();
       const registerData: any = {
         name: formData.name,
         password: formData.password,
