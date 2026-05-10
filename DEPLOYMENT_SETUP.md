@@ -15,8 +15,9 @@ This guide will help you complete the LeboLink application deployment. The appli
    - **Name**: `lebolink-api` (or similar)
    - **Region**: Ohio (free tier region)
    - **Branch**: `main`
-   - **Build Command**: `npm ci && npm run build:api`
-   - **Start Command**: `npm run start:api`
+   - **Root Directory**: `apps/api`
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm run start`
    - **Plan**: Free
 
 5. **Add Environment Variables**:

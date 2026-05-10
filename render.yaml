@@ -4,9 +4,9 @@ services:
     env: node
     region: ohio
     plan: free
-    rootDir: .
-    buildCommand: npm ci && npm run build:api
-    startCommand: npm run start:api
+    rootDir: apps/api
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
