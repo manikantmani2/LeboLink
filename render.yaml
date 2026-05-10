@@ -4,7 +4,8 @@ services:
     env: node
     region: ohio
     plan: free
-    dockerfilePath: ./apps/api/Dockerfile
+    buildCommand: npm ci && npm run build --workspace apps/api
+    startCommand: npm --workspace apps/api start
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
