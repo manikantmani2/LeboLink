@@ -21,6 +21,10 @@ COPY tsconfig.json ./
 WORKDIR /app/apps/api
 RUN npm run build
 
+# Build application
+WORKDIR /app/apps/api
+RUN npm run build
+
 # Runtime stage
 FROM node:18-alpine
 
@@ -33,6 +37,9 @@ RUN apk add --no-cache dumb-init curl ca-certificates
 COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
 COPY packages/shared/package*.json ./packages/shared/
+
+# Copy shared packages source if they exist
+COPY packages/shared ./packages/shared 2>/dev/null || true
 
 # Install production dependencies only
 RUN npm ci --omit=dev
