@@ -16,16 +16,38 @@ import { AdminModule } from './modules/admin/admin.module';
 
 let mongoServer: MongoMemoryServer | null = null;
 
+function normalizeMongoUri(rawValue?: string): string | undefined {
+  if (!rawValue) return undefined;
+
+  let value = rawValue.trim();
+
+  // Accept env values pasted as "MONGODB_URI=...".
+  if (value.startsWith('MONGODB_URI=')) {
+    value = value.slice('MONGODB_URI='.length).trim();
+  }
+
+  // Remove surrounding single/double quotes.
+  value = value.replace(/^['"]+|['"]+$/g, '').trim();
+
+  return value || undefined;
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot({ ttl: 60, limit: 60 }),
     MongooseModule.forRootAsync({
       useFactory: async () => {
-        const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
+        const uri =
+          normalizeMongoUri(process.env.MONGODB_URI) ||
+          normalizeMongoUri(process.env.MONGO_URI);
 
         // If user provided a URI, check host reachability and prefer it when reachable.
         if (uri) {
+          if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+            console.error('[mongo] invalid URI format. Expected mongodb:// or mongodb+srv://');
+          }
+
           // In production, require the URI.
           if (process.env.NODE_ENV === 'production') {
             console.log(`[mongo] connecting to production database`);
