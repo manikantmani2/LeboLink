@@ -21,15 +21,22 @@ function normalizeMongoUri(rawValue?: string): string | undefined {
 
   let value = rawValue.trim();
 
-  // Accept env values pasted as "MONGODB_URI=...".
+  // Accept env values pasted as "MONGODB_URI=..." or "MONGO_URI=...".
   if (value.startsWith('MONGODB_URI=')) {
     value = value.slice('MONGODB_URI='.length).trim();
   }
+  if (value.startsWith('MONGO_URI=')) {
+    value = value.slice('MONGO_URI='.length).trim();
+  }
 
-  // Remove surrounding single/double quotes.
-  value = value.replace(/^['"]+|['"]+$/g, '').trim();
+  // Remove surrounding single/double/backtick quotes.
+  value = value.replace(/^[`'"]+|[`'"]+$/g, '').trim();
 
   return value || undefined;
+}
+
+function isValidMongoUri(value?: string): boolean {
+  return !!value && (value.startsWith('mongodb://') || value.startsWith('mongodb+srv://'));
 }
 
 @Module({
@@ -38,13 +45,17 @@ function normalizeMongoUri(rawValue?: string): string | undefined {
     ThrottlerModule.forRoot({ ttl: 60, limit: 60 }),
     MongooseModule.forRootAsync({
       useFactory: async () => {
-        const uri =
-          normalizeMongoUri(process.env.MONGODB_URI) ||
-          normalizeMongoUri(process.env.MONGO_URI);
+        const primaryUri = normalizeMongoUri(process.env.MONGODB_URI);
+        const secondaryUri = normalizeMongoUri(process.env.MONGO_URI);
+        const uri = isValidMongoUri(primaryUri)
+          ? primaryUri
+          : isValidMongoUri(secondaryUri)
+            ? secondaryUri
+            : primaryUri || secondaryUri;
 
         // If user provided a URI, check host reachability and prefer it when reachable.
         if (uri) {
-          if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+          if (!isValidMongoUri(uri)) {
             console.error('[mongo] invalid URI format. Expected mongodb:// or mongodb+srv://');
           }
 
