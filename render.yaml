@@ -5,8 +5,6 @@ services:
     region: ohio
     plan: free
     dockerfilePath: ./apps/api/Dockerfile
-    buildCommand: npm ci && npm run build --workspace=@lebolink/api
-    startCommand: node apps/api/dist/src/main.js
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV

@@ -4,17 +4,17 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy root package files for workspace resolution
 COPY package*.json ./
+
+# Copy API package files
 COPY apps/api/package*.json ./apps/api/
-COPY packages/shared/package*.json ./packages/shared/
 
 # Install all dependencies (including dev)
 RUN npm ci
 
 # Copy source code
 COPY apps/api ./apps/api
-COPY packages/shared ./packages/shared
 COPY tsconfig.json ./
 
 # Build application
@@ -36,10 +36,6 @@ RUN apk add --no-cache dumb-init curl ca-certificates
 # Copy package files
 COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
-COPY packages/shared/package*.json ./packages/shared/
-
-# Copy shared packages source if they exist
-COPY packages/shared ./packages/shared 2>/dev/null || true
 
 # Install production dependencies only
 RUN npm ci --omit=dev
