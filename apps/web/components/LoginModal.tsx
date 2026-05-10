@@ -15,17 +15,13 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const { login } = useAuth();
   const router = useRouter();
   const { theme } = useTheme();
-  const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    otp: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [devOtp, setDevOtp] = useState('');
-  const [useOtpFallback, setUseOtpFallback] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState({ email: '', password: '' });
@@ -60,24 +56,15 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
       }
 
       const data = await response.json();
-      if (data.requiresOtp) {
-        // Extract and display dev code for admin OTP
-        if (data.devCode) {
-          setDevOtp(data.devCode);
-        }
-        setStep('otp');
-      } else {
-        // Extract user data from response
-        const userData = {
-          id: data.userId,
-          email: data.email,
-          phone: data.phone,
-          role: data.role,
-          name: data.name
-        };
-        login(data.token, data.userId, userData);
-        onClose();
-      }
+      const userData = {
+        id: data.userId,
+        email: data.email,
+        phone: data.phone,
+        role: data.role,
+        name: data.name,
+      };
+      login(data.token, data.userId, userData);
+      onClose();
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
@@ -85,69 +72,6 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     }
   };
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-      
-      const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formData.email }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to send verification code');
-      }
-
-      setDevOtp(data.devCode || data.otp);
-      setStep('otp');
-    } catch (err: any) {
-      console.error('OTP Send Error:', err);
-      setError(err.message || 'Failed to send verification code. Please check your email address and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-      const endpoint = isAdminMode ? `${apiBase}/api/v1/auth/admin-verify-otp` : `${apiBase}/api/v1/auth/verify-otp`;
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formData.email, otp: formData.otp }),
-      });
-
-      if (!response.ok) throw new Error('Invalid OTP');
-      const data = await response.json();
-      
-      // Extract user data from response
-      const userData = {
-        id: data.userId,
-        email: data.email,
-        phone: data.phone,
-        role: data.role,
-        name: data.name
-      };
-      login(data.token, data.userId, userData);
-      onClose();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <AnimatePresence>
@@ -198,8 +122,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                   onClick={() => {
                     setIsAdminMode(!isAdminMode);
                     setError('');
-                    setFormData({ email: '', password: '', otp: '' });
-                    setStep('credentials');
+                    setFormData({ email: '', password: '' });
                   }}
                   className={`px-4 py-2 rounded-lg font-semibold transition-all ${
                     isAdminMode 
@@ -221,20 +144,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 </motion.div>
               )}
 
-              {/* Dev OTP Display */}
-              {devOtp && step === 'otp' && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="mb-4 p-3 bg-amber-500/20 backdrop-blur-sm border border-amber-400/50 rounded-xl"
-                >
-                  <p className="text-amber-200 text-sm font-mono font-bold">🔑 OTP: {devOtp}</p>
-                </motion.div>
-              )}
-
-              {/* Credentials Form */}
-              {step === 'credentials' && !useOtpFallback && (
-                <motion.form onSubmit={handlePasswordLogin} className="space-y-3">
+              <motion.form onSubmit={handlePasswordLogin} className="space-y-3">
                   <div>
                     <input
                       type="email"
@@ -297,16 +207,6 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     </button>
                   </div>
 
-                  <div className="text-center">
-                    <button
-                      type="button"
-                      onClick={() => setUseOtpFallback(true)}
-                      className="text-gray-200 hover:text-white font-medium text-xs transition-colors"
-                    >
-                      Use OTP Login?
-                    </button>
-                  </div>
-
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
@@ -335,93 +235,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     </button>
                   </motion.p>
                 </motion.form>
-              )}
 
-              {/* OTP Request Form */}
-              {step === 'credentials' && useOtpFallback && (
-                <motion.form onSubmit={handleSendOtp} className="space-y-3">
-                  <div>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => {
-                        setFormData({ ...formData, email: e.target.value });
-                        setValidationErrors((prev) => ({ ...prev, email: '' }));
-                      }}
-                      className="w-full px-4 py-3 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2 text-white placeholder-gray-400"
-                      placeholder="Enter Email Address"
-                      required
-                    />
-                    {validationErrors.email && (
-                      <p className="text-red-400 text-xs mt-1">{validationErrors.email}</p>
-                    )}
-                  </div>
-
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-white text-gray-900 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? 'Sending...' : 'Send OTP'}
-                  </motion.button>
-
-                  <button
-                    type="button"
-                    onClick={() => setUseOtpFallback(false)}
-                    className="w-full text-center py-2 text-sm text-gray-200 font-semibold hover:text-white rounded-xl transition-all"
-                  >
-                    ← Back to Password Login
-                  </button>
-                </motion.form>
-              )}
-
-              {/* OTP Verification Form */}
-              {step === 'otp' && (
-                <motion.form onSubmit={handleVerifyOtp} className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2 text-center">
-                    Enter 6-Digit OTP sent to {formData.email}
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.otp}
-                      onChange={(e) => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '') })}
-                      className="w-full px-4 py-3 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none text-center text-2xl tracking-widest font-mono transition-all border-b-2 text-white placeholder-gray-400"
-                      placeholder="000000"
-                      required
-                      maxLength={6}
-                      autoFocus
-                    />
-                  </div>
-
-                  <div className="flex gap-3">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      type="button"
-                      onClick={() => {
-                        setStep('credentials');
-                        setFormData({ ...formData, otp: '' });
-                        setDevOtp('');
-                      }}
-                      className="flex-1 bg-gray-200/80 backdrop-blur-sm text-gray-700 py-2 rounded-xl font-semibold hover:bg-gray-300/80 transition-all"
-                    >
-                      Back
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      type="submit"
-                      disabled={loading || formData.otp.length !== 6}
-                      className="flex-1 bg-white text-gray-900 py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loading ? 'Verifying...' : 'Verify OTP'}
-                    </motion.button>
-                  </div>
-                </motion.form>
-              )}
             </div>
           </motion.div>
         </>

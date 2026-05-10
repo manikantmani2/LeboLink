@@ -6,104 +6,26 @@ import { motion } from 'framer-motion';
 import { useTheme } from '@/lib/theme-context';
 import { useAuth } from '@/lib/auth';
 
-type RegisterStep = 'method' | 'contact' | 'otp' | 'profile';
-type AuthMethod = 'email' | 'phone';
-
 export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
   const { theme } = useTheme();
 
-  const [step, setStep] = useState<RegisterStep>('method');
-  const [authMethod, setAuthMethod] = useState<AuthMethod>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [devOtp, setDevOtp] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     phone: '',
-    otp: '',
     name: '',
     password: '',
     confirmPassword: '',
     role: 'customer' as 'customer' | 'worker',
-    // Worker specific fields
     jobCategory: '',
     paymentPerHour: '',
     preferredLocation: '',
     nextAvailableDate: '',
   });
   const [showPassword, setShowPassword] = useState(false);
-
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (authMethod === 'email') {
-      if (!formData.email || !formData.email.includes('@')) {
-        setError('Valid email is required');
-        return;
-      }
-    } else {
-      const cleanPhone = formData.phone.replace(/\D/g, '');
-      if (cleanPhone.length !== 10) {
-        setError('Phone number must be 10 digits');
-        return;
-      }
-      if (!/^[6-9]/.test(cleanPhone)) {
-        setError('Indian phone number must start with 6, 7, 8, or 9');
-        return;
-      }
-    }
-
-    setLoading(true);
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-      
-      const requestBody = authMethod === 'email' 
-        ? { email: formData.email }
-        : { phone: formData.phone };
-
-      const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-
-      // Check if response is JSON before parsing
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`Server error: Expected JSON response but got ${contentType || 'unknown type'}`);
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || `Failed to send ${authMethod === 'email' ? 'email' : 'SMS'} code`);
-      }
-
-      setDevOtp(data.devCode || data.otp);
-      setStep('otp');
-    } catch (err: any) {
-      console.error('OTP Send Error:', err);
-      const errorMsg = err.message || `Failed to send ${authMethod === 'email' ? 'email' : 'SMS'} code`;
-      setError(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (!formData.otp || formData.otp.length !== 6) {
-      setError('OTP must be 6 digits');
-      return;
-    }
-
-    // Skip backend verification - the final registration will verify OTP
-    setStep('profile');
-  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,14 +36,22 @@ export default function RegisterPage() {
       return;
     }
 
-    if (authMethod === 'email' && (!formData.email || !formData.email.includes('@'))) {
+    if (!formData.email && !formData.phone) {
+      setError('Email or phone is required');
+      return;
+    }
+
+    if (formData.email && !formData.email.includes('@')) {
       setError('Valid email is required');
       return;
     }
 
-    if (authMethod === 'phone' && (!formData.phone || formData.phone.replace(/\D/g, '').length < 10)) {
-      setError('Valid phone number is required');
-      return;
+    if (formData.phone) {
+      const cleanPhone = formData.phone.replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        setError('Phone number must be 10 digits');
+        return;
+      }
     }
 
     if (!formData.password || formData.password.length < 6) {
@@ -157,23 +87,14 @@ export default function RegisterPage() {
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
       const registerData: any = {
-        otp: formData.otp,
         name: formData.name,
         password: formData.password,
         role: formData.role,
       };
 
-      if (authMethod === 'email') {
-        registerData.email = formData.email;
-      } else {
-        registerData.phone = formData.phone;
-      }
-
-      // Include both if both provided
       if (formData.email) registerData.email = formData.email;
       if (formData.phone) registerData.phone = formData.phone;
 
-      // Add worker-specific fields if worker role
       if (formData.role === 'worker') {
         registerData.jobCategory = formData.jobCategory;
         registerData.paymentPerHour = parseFloat(formData.paymentPerHour);
@@ -224,12 +145,7 @@ export default function RegisterPage() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 text-center">Create Account</h1>
-            <p className="text-center text-gray-600 text-sm mt-2">
-              {step === 'method' && 'Choose your sign-up method'}
-              {step === 'contact' && `Enter your ${authMethod === 'email' ? 'email' : 'phone'}`}
-              {step === 'otp' && 'Verify your identity'}
-              {step === 'profile' && 'Complete your profile'}
-            </p>
+            <p className="text-center text-gray-600 text-sm mt-2">Create your LeboLink account</p>
           </div>
 
           {/* Error Message */}
@@ -243,366 +159,145 @@ export default function RegisterPage() {
             </motion.div>
           )}
 
-          {/* Dev OTP Display */}
-          {devOtp && step === 'otp' && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="mb-4 p-3 bg-amber-500/20 backdrop-blur-sm border border-amber-400/50 rounded-xl"
-            >
-              <p className="text-amber-700 text-sm font-mono font-bold">🔑 OTP: {devOtp}</p>
-            </motion.div>
-          )}
+          <motion.form onSubmit={handleRegister} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="John Doe"
+                required
+              />
+            </div>
 
-          {/* Method Selection Step */}
-          {step === 'method' && (
-            <motion.div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => {
-                    setAuthMethod('email');
-                    setStep('contact');
-                  }}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    authMethod === 'email'
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 bg-white hover:border-blue-300'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">📧</div>
-                  <div className="font-semibold text-sm text-gray-900">Email</div>
-                </motion.button>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="john@example.com"
+              />
+            </div>
 
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => {
-                    setAuthMethod('phone');
-                    setStep('contact');
-                  }}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    authMethod === 'phone'
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 bg-white hover:border-blue-300'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">📱</div>
-                  <div className="font-semibold text-sm text-gray-900">Phone</div>
-                </motion.button>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Phone (optional)</label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="9876543210"
+              />
+            </div>
 
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setStep('contact')}
-                type="button"
-                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all"
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
+              <select
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as 'customer' | 'worker' })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               >
-                Continue
-              </motion.button>
+                <option value="customer">Customer</option>
+                <option value="worker">Worker</option>
+              </select>
+            </div>
 
-              <p className="text-center text-sm text-gray-600">
-                Already have an account?{' '}
-                <button
-                  onClick={() => router.push('/')}
-                  className="text-blue-600 font-semibold hover:text-blue-700"
-                >
-                  Login
-                </button>
-              </p>
-            </motion.div>
-          )}
+            {/* Worker Specific Fields */}
+            {formData.role === 'worker' && (
+              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">🔧 Job Category</label>
+                  <select
+                    value={formData.jobCategory}
+                    onChange={(e) => setFormData({ ...formData, jobCategory: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  >
+                    <option value="">Select your job category</option>
+                    <option value="Cleaning">House Cleaning & Maintenance</option>
+                    <option value="Plumbing">Plumbing & Water Works</option>
+                    <option value="Electrical">Electrical & Appliance Repair</option>
+                    <option value="Carpentry">Carpentry & Woodwork</option>
+                    <option value="Other">Other Services</option>
+                  </select>
+                </div>
 
-          {/* Contact Step */}
-          {step === 'contact' && (
-            <motion.form onSubmit={handleSendOtp} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {authMethod === 'email' ? 'Email Address' : 'Phone Number (10 digits)'}
-                </label>
-                {authMethod === 'email' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">💰 Payment Per Hour (₹)</label>
                   <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    placeholder="your@email.com"
+                    type="number"
+                    value={formData.paymentPerHour}
+                    onChange={(e) => setFormData({ ...formData, paymentPerHour: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="500"
+                    step="0.01"
+                    min="0"
                     required
                   />
-                ) : (
-                  <div>
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => {
-                        // Only allow digits and formatting characters
-                        const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                        let formatted = '';
-                        if (onlyDigits.length > 0) {
-                          if (onlyDigits.length <= 5) {
-                            formatted = onlyDigits;
-                          } else if (onlyDigits.length <= 8) {
-                            formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5);
-                          } else {
-                            formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5, 8) + ' ' + onlyDigits.slice(8);
-                          }
-                        }
-                        setFormData({ ...formData, phone: formatted });
-                      }}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                      placeholder="98765 43210"
-                      maxLength={14}
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Valid Indian numbers start with 6-9</p>
-                  </div>
-                )}
-              </div>
+                </div>
 
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStep('method')}
-                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300"
-                >
-                  Back
-                </button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-all disabled:opacity-50"
-                >
-                  {loading ? 'Sending...' : 'Send OTP'}
-                </motion.button>
-              </div>
-            </motion.form>
-          )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">📍 Preferred Location</label>
+                  <input
+                    type="text"
+                    value={formData.preferredLocation}
+                    onChange={(e) => setFormData({ ...formData, preferredLocation: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="e.g., Bangalore, Mumbai"
+                    required
+                  />
+                </div>
 
-          {/* OTP Step */}
-          {step === 'otp' && (
-            <motion.form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter 6-Digit OTP
-                </label>
-                <input
-                  type="text"
-                  value={formData.otp}
-                  onChange={(e) => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '') })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-center text-2xl tracking-widest"
-                  placeholder="000000"
-                  maxLength={6}
-                  required
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">📅 Available From</label>
+                  <input
+                    type="date"
+                    value={formData.nextAvailableDate}
+                    onChange={(e) => setFormData({ ...formData, nextAvailableDate: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  />
+                </div>
+              </motion.div>
+            )}
 
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep('contact');
-                    setFormData({ ...formData, otp: '' });
-                    setDevOtp('');
-                  }}
-                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-300"
-                >
-                  Back
-                </button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  disabled={loading || formData.otp.length !== 6}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {loading ? 'Verifying...' : 'Verify'}
-                </motion.button>
-              </div>
-            </motion.form>
-          )}
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none pr-12"
+                placeholder="••••••••"
+                required
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-9 text-gray-500">
+                {showPassword ? '👁️' : '👁️‍🗨️'}
+              </button>
+            </div>
 
-          {/* Profile Step */}
-          {step === 'profile' && (
-            <motion.form onSubmit={handleRegister} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="John Doe"
-                  required
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={formData.confirmPassword}
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                placeholder="••••••••"
+                required
+              />
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="john@example.com"
-                  required
-                />
-              </div>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all disabled:opacity-50">
+              {loading ? 'Creating Account...' : 'Create Account'}
+            </motion.button>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as 'customer' | 'worker' })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                >
-                  <option value="customer">Customer</option>
-                  <option value="worker">Worker</option>
-                </select>
-              </div>
-
-              {/* Worker Specific Fields */}
-              {formData.role === 'worker' && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200"
-                  >
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        🔧 Job Category
-                      </label>
-                      <select
-                        value={formData.jobCategory}
-                        onChange={(e) => setFormData({ ...formData, jobCategory: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        required
-                      >
-                        <option value="">Select your job category</option>
-                        <option value="Cleaning">House Cleaning & Maintenance</option>
-                        <option value="Plumbing">Plumbing & Water Works</option>
-                        <option value="Electrical">Electrical & Appliance Repair</option>
-                        <option value="Carpentry">Carpentry & Woodwork</option>
-                        <option value="Painting">Painting & Wall Finishing</option>
-                        <option value="HVAC">AC & Refrigeration Repair</option>
-                        <option value="Landscaping">Gardening & Landscaping</option>
-                        <option value="Handyman">General Handyman Services</option>
-                        <option value="Tutoring">Tutoring & Education</option>
-                        <option value="Childcare">Childcare & Babysitting</option>
-                        <option value="Cooking">Home Cooking & Catering</option>
-                        <option value="Elder Care">Elder Care & Nursing</option>
-                        <option value="Pet Care">Pet Care & Grooming</option>
-                        <option value="Transportation">Transportation & Moving</option>
-                        <option value="Other">Other Services</option>
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">Select the primary service you offer</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        💰 Payment Per Hour (₹)
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.paymentPerHour}
-                        onChange={(e) => setFormData({ ...formData, paymentPerHour: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        placeholder="500"
-                        step="0.01"
-                        min="0"
-                        required
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Enter your hourly rate</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        📍 Preferred Location
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.preferredLocation}
-                        onChange={(e) => setFormData({ ...formData, preferredLocation: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        placeholder="e.g., Bangalore, Mumbai"
-                        required
-                      />
-                      <p className="text-xs text-gray-500 mt-1">City or area where you prefer to work</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        📅 Available From
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.nextAvailableDate}
-                        onChange={(e) => setFormData({ ...formData, nextAvailableDate: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        required
-                      />
-                      <p className="text-xs text-gray-500 mt-1">When are you available to start work?</p>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none pr-12"
-                  placeholder="••••••••"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-9 text-gray-500"
-                >
-                  {showPassword ? '👁️' : '👁️‍🗨️'}
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all disabled:opacity-50"
-              >
-                {loading ? 'Creating Account...' : 'Create Account'}
-              </motion.button>
-
-              <p className="text-center text-sm text-gray-600">
-                Already have an account?{' '}
-                <button
-                  onClick={() => router.push('/')}
-                  className="text-blue-600 font-semibold hover:text-blue-700"
-                >
-                  Login
-                </button>
-              </p>
-            </motion.form>
-          )}
+            <p className="text-center text-sm text-gray-600">Already have an account? <button onClick={() => router.push('/login')} className="text-blue-600 font-semibold hover:text-blue-700">Login</button></p>
+          </motion.form>
         </div>
       </motion.div>
     </div>

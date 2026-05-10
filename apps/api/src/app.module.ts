@@ -22,19 +22,58 @@ let mongoServer: MongoMemoryServer | null = null;
     ThrottlerModule.forRoot({ ttl: 60, limit: 60 }),
     MongooseModule.forRootAsync({
       useFactory: async () => {
-        // Check for production MongoDB URI (Railway uses MONGODB_URI)
         const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
-        
+
+        // If user provided a URI, check host reachability and prefer it when reachable.
         if (uri) {
-          console.log(`[mongo] connecting to production database`);
-          return { uri };
+          // In production, require the URI.
+          if (process.env.NODE_ENV === 'production') {
+            console.log(`[mongo] connecting to production database`);
+            return { uri };
+          }
+
+          // For development, attempt a quick TCP check to the host:port in the URI.
+          try {
+            const match = uri.match(/mongodb(?:\+srv)?:\/\/([^\/:]+)(?::(\d+))?/);
+            if (match) {
+              const host = match[1];
+              const port = parseInt(match[2] || '27017', 10);
+              const reachable = await new Promise<boolean>((resolve) => {
+                const net = require('net');
+                const socket = new net.Socket();
+                const onError = () => {
+                  socket.destroy();
+                  resolve(false);
+                };
+                socket.setTimeout(2000);
+                socket.once('error', onError);
+                socket.once('timeout', onError);
+                socket.connect(port, host, () => {
+                  socket.end();
+                  resolve(true);
+                });
+              });
+
+              if (reachable) {
+                console.log(`[mongo] connecting to provided database at ${host}:${port}`);
+                return { uri };
+              }
+              console.warn(`[mongo] provided MongoDB at ${host}:${port} is unreachable; falling back to in-memory for dev`);
+            } else {
+              // If we can't parse the host, attempt to use the URI anyway.
+              console.log('[mongo] provided MONGODB URI present; attempting to use it');
+              return { uri };
+            }
+          } catch (err) {
+            console.warn('[mongo] error while checking provided MongoDB URI, falling back to in-memory', (err as any)?.message || err);
+          }
         }
-        
+
         // Only use in-memory MongoDB for local development
         if (process.env.NODE_ENV === 'production') {
           throw new Error('MONGODB_URI environment variable is required in production');
         }
-        
+
         mongoServer = await MongoMemoryServer.create();
         const memUri = mongoServer.getUri('lebolink');
         console.log(`[mongo] using in-memory at ${memUri}`);

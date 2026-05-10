@@ -5,7 +5,7 @@
 ## ✨ Features
 
 - 🚀 Instant worker booking (30-min guarantee)
-- 🔐 OTP authentication with JWT
+- 🔐 Password-based authentication with JWT
 - 👥 Multi-role support (Customer/Worker/Admin)
 - 🎨 Glassmorphism UI with 7 color themes
 - 📱 PWA-ready & mobile-first
@@ -67,17 +67,19 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for full deployment guide.
 ## 🚀 Deployment Options
 
 - **Vercel** (Frontend) - See [DEPLOYMENT.md](DEPLOYMENT.md#vercel-frontend)
-- **Railway** (Full Stack) - See [DEPLOYMENT.md](DEPLOYMENT.md#railway-full-stack)
 - **Render** (Full Stack) - See [DEPLOYMENT.md](DEPLOYMENT.md#render-full-stack)
 - **Docker** (Self-hosted) - See [DEPLOYMENT.md](DEPLOYMENT.md#local-deployment-docker)
 - **GitHub Actions** (CI/CD) - See [DEPLOYMENT.md](DEPLOYMENT.md#github-actions-cicd)
 
-## �🔐 Authentication
+> For production, set `MONGODB_URI` to your MongoDB Atlas connection string. Local development falls back to an in-memory MongoDB instance when `MONGODB_URI` is not provided.
+
+## 🔐 Authentication
 
 **Test Admin:** Email `admin@lebolink.com` | Password `Hello@&1234`
 
-- **User/Worker:** Email-based registration with OTP verification
-- **Admin:** Email + Password + Email OTP verification
+- **User/Worker:** Password-based login with email or phone
+- **Admin:** Email + Password login
+- **Notes:** OTP support has been removed and auth now uses direct password-based flows
 - Role-based routing (Customer → Home, Worker → Jobs, Admin → Dashboard)
 
 ## 📱 Project Structure

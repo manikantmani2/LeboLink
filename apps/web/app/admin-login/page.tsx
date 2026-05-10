@@ -8,15 +8,12 @@ import { motion } from 'framer-motion';
 export default function AdminLoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    otp: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [devOtp, setDevOtp] = useState('');
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,51 +37,14 @@ export default function AdminLoginPage() {
         throw new Error(data.message || 'Invalid credentials');
       }
 
-      if (data.requiresOtp) {
-        setDevOtp(data.devCode || '');
-        setStep('otp');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOtpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-      const response = await fetch(`${apiBase}/api/v1/auth/admin-verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          otp: formData.otp,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Invalid OTP');
-      }
-
-      // Store auth data
       login(data.token, data.userId, {
         id: data.userId,
-        email: formData.email,
+        email: data.email,
         role: 'admin',
         name: data.name,
       });
-
-      // Redirect to admin dashboard
-      router.push('/admin');
     } catch (err: any) {
-      setError(err.message || 'OTP verification failed');
+      setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -106,9 +66,7 @@ export default function AdminLoginPage() {
               </svg>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Admin Login</h1>
-            <p className="text-gray-600 mt-2">
-              {step === 'credentials' ? 'Enter your email and password' : 'Enter OTP sent to your email'}
-            </p>
+            <p className="text-gray-600 mt-2">Enter your email and password</p>
           </div>
 
           {/* Error Message */}
@@ -118,91 +76,43 @@ export default function AdminLoginPage() {
             </div>
           )}
 
-          {/* Dev OTP Display */}
-          {devOtp && step === 'otp' && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-blue-600 text-sm font-mono">Dev OTP: {devOtp}</p>
+          <form onSubmit={handleCredentialsSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email Address
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-brand"
+                placeholder="admin@lebolink.com"
+                required
+              />
             </div>
-          )}
 
-          {/* Credentials Form */}
-          {step === 'credentials' && (
-            <form onSubmit={handleCredentialsSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-brand"
-                  placeholder="admin@lebolink.com"
-                  required
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-brand"
+                placeholder="••••••••"
+                required
+              />
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-brand"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-brand to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Verifying...' : 'Continue to Verification'}
-              </button>
-            </form>
-          )}
-
-          {/* OTP Form */}
-          {step === 'otp' && (
-            <form onSubmit={handleOtpSubmit} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter 6-Digit OTP sent to {formData.email}
-                </label>
-                <input
-                  type="text"
-                  value={formData.otp}
-                  onChange={(e) => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '') })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-brand text-center text-2xl tracking-widest font-mono"
-                  placeholder="000000"
-                  required
-                  maxLength={6}
-                  autoFocus
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => { setStep('credentials'); setFormData({ ...formData, otp: '' }); }}
-                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-all"
-                >
-                  Back
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading || formData.otp.length !== 6}
-                  className="flex-1 bg-gradient-to-r from-brand to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Verifying...' : 'Login'}
-                </button>
-              </div>
-            </form>
-          )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-brand to-purple-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
 
           {/* Footer */}
           <div className="mt-6 text-center">

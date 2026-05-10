@@ -1,33 +1,24 @@
 'use client';
 
-import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme-context';
 import ThemeSettings from '@/components/ThemeSettings';
 
-function LoginPageContent() {
+function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const fromLanding = searchParams.get('from') === 'landing';
   const { login } = useAuth();
   const { theme } = useTheme();
-  const [step, setStep] = useState<'method' | 'credentials' | 'otp'>('credentials');
+
   const [method, setMethod] = useState<'email' | 'phone'>('email');
-  const [formData, setFormData] = useState({
-    email: '',
-    phone: '',
-    password: '',
-    otp: '',
-  });
+  const [formData, setFormData] = useState({ email: '', phone: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [devOtp, setDevOtp] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [validationErrors, setValidationErrors] = useState({ contact: '', password: '' });
-  const [useOtpFallback, setUseOtpFallback] = useState(false);
 
   const currentTheme = theme;
 
@@ -37,17 +28,15 @@ function LoginPageContent() {
     setValidationErrors({ contact: '', password: '' });
     setLoading(true);
 
-    // Validation
     const isEmailMethod = method === 'email';
     const contact = isEmailMethod ? formData.email : formData.phone;
-    
+
     if (!contact) {
       setValidationErrors((prev) => ({ ...prev, contact: `${isEmailMethod ? 'Email' : 'Phone'} cannot be blank.` }));
       setLoading(false);
       return;
     }
 
-    // Validate Indian phone if using phone method
     if (!isEmailMethod) {
       const cleanPhone = formData.phone.replace(/\D/g, '');
       if (cleanPhone.length !== 10) {
@@ -70,7 +59,7 @@ function LoginPageContent() {
 
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-      const loginData = isEmailMethod 
+      const loginData = isEmailMethod
         ? { email: formData.email, password: formData.password }
         : { phone: formData.phone, password: formData.password };
 
@@ -107,122 +96,17 @@ function LoginPageContent() {
     }
   };
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    const contact = method === 'email' ? formData.email : formData.phone;
-    if (!contact) {
-      setError(`${method === 'email' ? 'Email' : 'Phone'} is required`);
-      setLoading(false);
-      return;
-    }
-
-    // Validate Indian phone if using phone method
-    if (method === 'phone') {
-      const cleanPhone = formData.phone.replace(/\D/g, '');
-      if (cleanPhone.length !== 10) {
-        setError('Phone number must be 10 digits');
-        setLoading(false);
-        return;
-      }
-      if (!/^[6-9]/.test(cleanPhone)) {
-        setError('Indian phone number must start with 6, 7, 8, or 9');
-        setLoading(false);
-        return;
-      }
-    }
-
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-      const requestBody = method === 'email' 
-        ? { email: formData.email }
-        : { phone: formData.phone };
-
-      const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to send verification code');
-      }
-
-      setDevOtp(data.devCode || '');
-      setStep('otp');
-    } catch (err: any) {
-      console.error('OTP Send Error:', err);
-      setError(err.message || 'Failed to send verification code. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
-      const requestBody = method === 'email'
-        ? { email: formData.email, otp: formData.otp }
-        : { phone: formData.phone, otp: formData.otp };
-
-      const response = await fetch(`${apiBase}/api/v1/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Invalid OTP');
-      }
-
-      login(data.token, data.userId, {
-        id: data.userId,
-        email: data.email || formData.email,
-        phone: data.phone || formData.phone,
-        role: (data.role || 'customer') as 'customer' | 'worker',
-        name: data.name,
-      });
-
-      if (!data.hasProfile) {
-        router.push('/signup');
-      } else {
-        router.push(data.role === 'worker' ? '/feed' : '/home');
-      }
-    } catch (err: any) {
-      console.error('OTP Verify Error:', err);
-      setError(err.message || 'OTP verification failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center backdrop-blur-xl">
-      {/* Theme Settings Button */}
       <div className="absolute top-4 right-4 z-20">
         <ThemeSettings />
       </div>
 
       <div className="w-full max-w-md px-4">
-        {/* Login Card */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ 
-            type: "spring",
-            stiffness: 200,
-            damping: 20
-          }}
+          transition={{ type: 'spring', stiffness: 200, damping: 20 }}
           className="bg-white/10 backdrop-blur-2xl rounded-3xl shadow-lg p-8 border border-white/30"
           style={{
             background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05))',
@@ -232,377 +116,54 @@ function LoginPageContent() {
         >
           <h2 className="text-2xl font-bold text-center text-white mb-6">Login</h2>
 
-          {/* Error Message */}
           {error && (
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="mb-4 p-3 bg-red-50/80 backdrop-blur-sm border border-red-200 rounded-xl"
-            >
+            <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="mb-4 p-3 bg-red-50/80 backdrop-blur-sm border border-red-200 rounded-xl">
               <p className="text-red-600 text-sm">{error}</p>
             </motion.div>
           )}
 
-          {/* Dev OTP Display */}
-          {devOtp && step === 'otp' && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="mb-4 p-3 bg-gradient-to-r from-amber-50 to-yellow-50 backdrop-blur-sm border-2 border-amber-400 rounded-xl"
-            >
-              <p className="text-amber-800 text-sm font-mono font-bold">🔑 Dev OTP: {devOtp}</p>
-            </motion.div>
-          )}
+          <motion.form initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} onSubmit={handlePasswordLogin} className="space-y-3">
+            <div className="flex gap-3 mb-2">
+              <button type="button" onClick={() => { setMethod('email'); setValidationErrors({ contact: '', password: '' }); setError(''); }} className={`flex-1 py-2 px-3 rounded-xl font-semibold transition-all ${method === 'email' ? 'bg-blue-600 text-white' : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'}`}>📧 Email</button>
+              <button type="button" onClick={() => { setMethod('phone'); setValidationErrors({ contact: '', password: '' }); setError(''); }} className={`flex-1 py-2 px-3 rounded-xl font-semibold transition-all ${method === 'phone' ? 'bg-blue-600 text-white' : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'}`}>📱 Phone</button>
+            </div>
 
-          {/* Credentials Form */}
-          {step === 'credentials' && !useOtpFallback && (
-            <motion.form
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              onSubmit={handlePasswordLogin}
-              className="space-y-3"
-            >
-              <div className="flex gap-3 mb-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMethod('email');
-                    setValidationErrors({ contact: '', password: '' });
-                    setError('');
-                  }}
-                  className={`flex-1 py-2 px-3 rounded-xl font-semibold transition-all ${
-                    method === 'email'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
-                  }`}
-                >
-                  📧 Email
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMethod('phone');
-                    setValidationErrors({ contact: '', password: '' });
-                    setError('');
-                  }}
-                  className={`flex-1 py-2 px-3 rounded-xl font-semibold transition-all ${
-                    method === 'phone'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
-                  }`}
-                >
-                  📱 Phone
-                </button>
-              </div>
+            <div>
+              {method === 'email' ? (
+                <input type="email" value={formData.email} onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setValidationErrors((prev) => ({ ...prev, contact: '' })); }} className={`w-full px-4 py-3 border ${validationErrors.contact && method === 'email' ? 'border-red-400' : 'border-gray-300/50'} bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2 border-white/20`} placeholder="Enter Email Address *" />
+              ) : (
+                <input type="tel" value={formData.phone} onChange={(e) => { const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 10); let formatted = ''; if (onlyDigits.length > 0) { if (onlyDigits.length <= 5) { formatted = onlyDigits; } else if (onlyDigits.length <= 8) { formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5); } else { formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5, 8) + ' ' + onlyDigits.slice(8); } } setFormData({ ...formData, phone: formatted }); setValidationErrors((prev) => ({ ...prev, contact: '' })); }} className={`w-full px-4 py-3 border ${validationErrors.contact && method === 'phone' ? 'border-red-400' : 'border-gray-300/50'} bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2 border-white/20`} placeholder="Enter Phone Number * (98765 43210)" maxLength={14} />
+              )}
+              {validationErrors.contact && <p className="text-red-500 text-xs mt-1">{validationErrors.contact}</p>}
+            </div>
 
-              <div>
-                {method === 'email' ? (
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => {
-                      setFormData({ ...formData, email: e.target.value });
-                      setValidationErrors((prev) => ({ ...prev, contact: '' }));
-                    }}
-                    className={`w-full px-4 py-3 border ${
-                      validationErrors.contact && method === 'email' ? 'border-red-400' : 'border-gray-300/50'
-                    } bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 ${theme?.border || 'focus:border-blue-500'} outline-none transition-all border-b-2 border-white/20`}
-                    placeholder="Enter Email Address *"
-                  />
-                ) : (
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => {
-                      const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                      let formatted = '';
-                      if (onlyDigits.length > 0) {
-                        if (onlyDigits.length <= 5) {
-                          formatted = onlyDigits;
-                        } else if (onlyDigits.length <= 8) {
-                          formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5);
-                        } else {
-                          formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5, 8) + ' ' + onlyDigits.slice(8);
-                        }
-                      }
-                      setFormData({ ...formData, phone: formatted });
-                      setValidationErrors((prev) => ({ ...prev, contact: '' }));
-                    }}
-                    className={`w-full px-4 py-3 border ${
-                      validationErrors.contact && method === 'phone' ? 'border-red-400' : 'border-gray-300/50'
-                    } bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 ${theme?.border || 'focus:border-blue-500'} outline-none transition-all border-b-2 border-white/20`}
-                    placeholder="Enter Phone Number * (98765 43210)"
-                    maxLength={14}
-                  />
-                )}
-                {validationErrors.contact && (
-                  <p className="text-red-500 text-xs mt-1">{validationErrors.contact}</p>
-                )}
-              </div>
+            <div className="relative">
+              <input type={showPassword ? 'text' : 'password'} value={formData.password} onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setValidationErrors((prev) => ({ ...prev, password: '' })); }} className={`w-full px-4 py-3 border ${validationErrors.password ? 'border-red-400' : 'border-gray-300/50'} bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none pr-12 transition-all border-b-2 border-white/20`} placeholder="Enter Password *" />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white transition-colors">{showPassword ? '👁️' : '👁️‍🗨️'}</button>
+              {validationErrors.password && <p className="text-red-500 text-xs mt-1">{validationErrors.password}</p>}
+            </div>
 
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={formData.password}
-                    onChange={(e) => {
-                      setFormData({ ...formData, password: e.target.value });
-                      setValidationErrors((prev) => ({ ...prev, password: '' }));
-                    }}
-                    className={`w-full px-4 py-3 border ${
-                      validationErrors.password ? 'border-red-400' : 'border-gray-300/50'
-                    } bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 ${theme?.border || 'focus:border-blue-500'} outline-none pr-12 transition-all border-b-2 border-white/20`}
-                    placeholder="Enter Password *"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white transition-colors"
-                  >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
-                  </button>
-                  {validationErrors.password && (
-                    <p className="text-red-500 text-xs mt-1">{validationErrors.password}</p>
-                  )}
-                </div>
+            <div className="flex items-center">
+              <input type="checkbox" id="remember" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className={`w-4 h-4 ${theme?.primary || 'text-blue-600'} border-gray-300 rounded focus:ring-white/50`} />
+              <label htmlFor="remember" className="ml-2 text-sm text-gray-200">Remember Me</label>
+            </div>
 
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="remember"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className={`w-4 h-4 ${theme?.primary || 'text-blue-600'} border-gray-300 rounded focus:ring-white/50`}
-                  />
-                  <label htmlFor="remember" className="ml-2 text-sm text-gray-200">
-                    Remember Me
-                  </label>
-                </div>
+            <div className="flex items-center justify-center text-xs">
+              <button type="button" onClick={() => router.push('/forgot-password')} className="text-red-400 hover:text-red-300 font-medium transition-colors">Forgot Password?</button>
+            </div>
 
-                {/* Links */}
-                <div className="flex items-center justify-center text-xs">
-                  <button
-                    type="button"
-                    onClick={() => router.push('/forgot-password')}
-                    className="text-red-400 hover:text-red-300 font-medium transition-colors"
-                  >
-                    Forgot Password?
-                  </button>
-                </div>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={loading} className="w-full bg-white text-black py-3 rounded-xl font-semibold hover:opacity-90 transition-all">
+              {loading ? 'Logging in...' : 'Login'}
+            </motion.button>
 
-                <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={() => setUseOtpFallback(true)}
-                    className="text-gray-200 hover:text-white font-medium text-xs transition-colors"
-                  >
-                    Use OTP Login?
-                  </button>
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  disabled={loading}
-                  className={`w-full ${theme?.gradient || 'bg-gradient-to-r from-blue-600 to-purple-600'} hover:opacity-90 text-white py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {loading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="animate-spin">⏳</span> Signing in...
-                    </span>
-                  ) : (
-                    'Login'
-                  )}
-                </motion.button>
-              </motion.form>
-            )}
-
-            {/* OTP Request Form */}
-            {step === 'credentials' && useOtpFallback && (
-              <motion.form
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                onSubmit={handleSendOtp}
-                className="space-y-4"
-              >
-                <div className="flex gap-3 mb-4">
-                  <button
-                    type="button"
-                    onClick={() => setMethod('email')}
-                    className={`flex-1 py-2 px-3 rounded-xl font-semibold transition-all ${
-                      method === 'email'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
-                    }`}
-                  >
-                    📧 Email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMethod('phone')}
-                    className={`flex-1 py-2 px-3 rounded-xl font-semibold transition-all ${
-                      method === 'phone'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
-                    }`}
-                  >
-                    📱 Phone
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    {method === 'email' ? 'Email Address' : 'Phone Number (10 digits)'}
-                  </label>
-                  {method === 'email' ? (
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className={`w-full px-4 py-2 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2`}
-                      placeholder="your.email@example.com"
-                      required
-                    />
-                  ) : (
-                    <div>
-                      <input
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => {
-                          // Only allow digits and formatting characters
-                          const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                          let formatted = '';
-                          if (onlyDigits.length > 0) {
-                            if (onlyDigits.length <= 5) {
-                              formatted = onlyDigits;
-                            } else if (onlyDigits.length <= 8) {
-                              formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5);
-                            } else {
-                              formatted = onlyDigits.slice(0, 5) + ' ' + onlyDigits.slice(5, 8) + ' ' + onlyDigits.slice(8);
-                            }
-                          }
-                          setFormData({ ...formData, phone: formatted });
-                        }}
-                        className={`w-full px-4 py-2 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none transition-all border-b-2`}
-                        placeholder="98765 43210"
-                        maxLength={14}
-                        required
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Valid Indian numbers start with 6-9</p>
-                    </div>
-                  )}
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  disabled={loading}
-                  className={`w-full ${theme?.gradient || 'bg-gradient-to-r from-blue-600 to-purple-600'} hover:opacity-90 text-white py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {loading ? 'Sending...' : 'Send OTP'}
-                </motion.button>
-
-                <button
-                  type="button"
-                  onClick={() => setUseOtpFallback(false)}
-                  className="w-full text-center py-2 text-sm text-gray-200 font-semibold hover:text-white rounded-xl transition-all"
-                >
-                  ← Back to Password Login
-                </button>
-              </motion.form>
-            )}
-
-            {/* OTP Verification Form */}
-            {step === 'otp' && (
-              <motion.form
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                onSubmit={handleVerifyOtp}
-                className="space-y-4"
-              >
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
-                    Enter 6-Digit OTP sent to {method === 'email' ? formData.email : formData.phone}
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.otp}
-                    onChange={(e) => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '') })}
-                    className={`w-full px-4 py-3 border border-white/20 bg-white/10 backdrop-blur-lg rounded-xl focus:ring-2 focus:ring-white/50 outline-none text-center text-2xl tracking-widest font-mono transition-all border-b-2`}
-                    placeholder="000000"
-                    required
-                    maxLength={6}
-                    autoFocus
-                  />
-                </div>
-
-                <div className="flex gap-3">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="button"
-                    onClick={() => { setStep('credentials'); setFormData({ ...formData, otp: '' }); setDevOtp(''); }}
-                    className="flex-1 bg-gray-200/80 backdrop-blur-sm text-gray-700 py-2 rounded-xl font-semibold hover:bg-gray-300/80 transition-all"
-                  >
-                    Back
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    disabled={loading || formData.otp.length !== 6}
-                    className={`flex-1 ${theme?.gradient || 'bg-gradient-to-r from-blue-600 to-purple-600'} hover:opacity-90 text-white py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    {loading ? 'Verifying...' : 'Verify OTP'}
-                  </motion.button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleSendOtp}
-                  disabled={loading}
-                  className="w-full text-center py-2 text-sm text-blue-600 font-semibold hover:bg-blue-50/50 rounded-xl transition-all"
-                >
-                  Resend OTP
-                </button>
-              </motion.form>
-            )}
-
-            {/* Sign Up Link */}
-            {step === 'credentials' && !useOtpFallback && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
-                className="text-center text-sm text-gray-300 mt-4"
-              >
-                Don't have an account?{' '}
-                <button
-                  onClick={() => router.push('/signup')}
-                  className={`font-semibold ${theme?.text || 'text-blue-600'} hover:opacity-80 transition-all`}
-                  style={{
-                    background: `linear-gradient(135deg, ${theme?.from?.replace('from-', '') || 'rgb(37, 99, 235)'}, ${theme?.to?.replace('to-', '') || 'rgb(147, 51, 234)'}`,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}
-                >
-                  Create Account
-                </button>
-              </motion.p>
-            )}
-          </motion.div>
-        </div>
+            <p className="text-center text-sm text-gray-300 mt-2">Don't have an account? <button onClick={() => router.push('/register')} className="text-white font-semibold">Create Account</button></p>
+          </motion.form>
+        </motion.div>
       </div>
+    </div>
   );
 }
 
 export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen" />}>
-      <LoginPageContent />
-    </Suspense>
-  );
+  return <LoginForm />;
 }

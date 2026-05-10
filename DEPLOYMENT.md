@@ -7,7 +7,7 @@ Complete guide for deploying LeboLink on various platforms using GitHub.
 1. [Local Deployment (Docker)](#local-deployment-docker)
 2. [GitHub Actions CI/CD](#github-actions-cicd)
 3. [Vercel (Frontend)](#vercel-frontend)
-4. [Railway (Full Stack)](#railway-full-stack)
+4. [API Hosting Options](#api-hosting-options)
 5. [Render (Full Stack)](#render-full-stack)
 6. [Docker Hub Registry](#docker-hub-registry)
 7. [Environment Variables](#environment-variables)
@@ -134,7 +134,12 @@ gh workflow run ci.yml
 
 Vercel is the best platform for Next.js applications. 
 
-**⚠️ Important**: Vercel will host the **frontend (Web) only**. The API backend needs to be hosted separately on Railway, Render, or another platform (see sections below).
+**Note**: Vercel is ideal for hosting the **frontend (Web)**. You can also host the API on Vercel by converting it to serverless functions (recommended for smaller APIs) or by deploying the API as a separate service. Below are two recommended approaches:
+
+- **Option A — Frontend on Vercel, API as Vercel Serverless**: Convert the NestJS API to a serverless-compatible build (use `@nestjs/platform-serverless` or a serverless adapter) and expose endpoints under `/api` or as separate serverless functions. This keeps both frontend and API within Vercel projects.
+- **Option B — Frontend on Vercel, API on a Node host**: Deploy the API to a Node-friendly host (Render, Fly, or a VPS) and point `NEXT_PUBLIC_API_BASE_URL` to that service. This is the simplest option if you want to keep the existing NestJS server without significant refactor.
+
+Choose the option that matches your tolerance for refactor vs. simplicity.
 
 ### Quick Deploy Steps
 
@@ -162,10 +167,10 @@ Vercel is the best platform for Next.js applications.
    Click "Environment Variables" and add:
    
    ```
-   NEXT_PUBLIC_API_BASE_URL=https://your-api-url.railway.app
+   NEXT_PUBLIC_API_BASE_URL=https://your-api-url.example.com
    ```
    
-   ⚠️ You'll need to deploy the API first (see Railway or Render sections below) and use that URL here.
+   ⚠️ You'll need to deploy the API first (see "API Hosting Options" above) and use that URL here.
 
 5. **Deploy**
    - Click "Deploy"
@@ -193,81 +198,12 @@ Once connected to GitHub:
 
 For full stack deployment:
 
-1. **First**: Deploy API on Railway/Render (see sections below)
-2. **Second**: Copy the API URL from Railway/Render
+1. **First**: Deploy API on Vercel / API host (Render or similar) (see sections below)
+2. **Second**: Copy the API URL from your Vercel / API host
 3. **Third**: Deploy Web on Vercel using the API URL
 4. **Fourth**: Test the complete flow
 
 ---
-
-## Railway (Full Stack)
-
-Railway is an excellent platform for full-stack deployment with MongoDB support.
-
-### Deployment Steps
-
-1. **Create Railway Account**
-   - Visit https://railway.app
-   - Sign up with GitHub
-
-2. **Create New Project**
-   - Click "Create a New Project"
-   - Select "Deploy from GitHub repo"
-   - Authorize and select LeboLink repository
-
-3. **Add Services**
-
-   **Step 1: Add MongoDB**
-   - Click "Add Service" → "Database"
-   - Select "MongoDB"
-   - Railway auto-provides MongoDB connection string
-
-   **Step 2: Deploy API (NestJS)**
-   - Click "Add Service" → "GitHub Repo"
-   - Select LeboLink repository
-   - Configure:
-     - **Root Directory**: `apps/api`
-     - **Build Command**: `npm run build`
-     - **Start Command**: `npm run start`
-   - Click "Deploy"
-
-   **Step 3: Deploy Web (Next.js)**
-   - Click "Add Service" → "GitHub Repo"
-   - Select LeboLink repository
-   - Configure:
-     - **Root Directory**: `apps/web`
-     - **Build Command**: `npm run build`
-     - **Start Command**: `npm run start`
-   - Set environment:
-     - `NEXT_PUBLIC_API_BASE_URL`: Copy API service URL from Railway
-
-4. **Environment Variables**
-
-   In Railway dashboard for each service:
-
-   **For API Service:**
-   ```
-   NODE_ENV=production
-   PORT=3001
-   MONGODB_URI=<auto-provided by Railway>
-   JWT_SECRET=<your-random-secret-key>
-   ```
-
-   **For Web Service:**
-   ```
-   NODE_ENV=production
-   NEXT_PUBLIC_API_BASE_URL=<API_SERVICE_URL>
-   ```
-
-5. **Deploy**
-   - Click "Deploy" on each service
-   - Railway auto-deploys on every GitHub push
-
-### Access Your App
-
-- **Frontend**: Railway provides a public URL
-- **API**: Railway provides a public URL
-- **MongoDB**: Railway provides connection string
 
 ---
 
@@ -384,7 +320,7 @@ NEXT_PUBLIC_APP_VERSION=1.0.0
 
 **GitHub Actions:** Add to repository secrets
 **Vercel:** Project Settings → Environment Variables
-**Railway:** Variables section in service settings
+**Vercel / API host:** Variables section in service settings
 **Render:** Environment → Native Environment Variables
 **Docker Compose:** Create `.env` file at project root
 
@@ -412,7 +348,7 @@ docker-compose logs -f mongodb # MongoDB logs
 - Dashboard → Deployments → Select deployment → Logs
 - Real-time logs show runtime errors
 
-**Railway/Render:**
+**Vercel / Render:**
 - Dashboard → Service → Logs tab
 - Monitor for application errors
 

@@ -6,7 +6,7 @@ try {
   config({ path: path.resolve(process.cwd(), '.env') });
 } catch {}
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/lebolink';
+const MONGO_URI = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/lebolink';
 
 async function run() {
   await mongoose.connect(MONGO_URI);

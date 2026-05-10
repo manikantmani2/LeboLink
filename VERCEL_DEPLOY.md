@@ -6,34 +6,24 @@ This guide will help you deploy LeboLink to Vercel in under 10 minutes.
 
 - GitHub account with LeboLink repository
 - Vercel account (sign up at https://vercel.com)
-- API backend deployed (Railway/Render recommended - see DEPLOYMENT.md)
+-- API backend deployed (see DEPLOYMENT.md for hosting options)
 
 ---
 
 ## 🎯 Step-by-Step: Deploy to Vercel
 
-### Step 1: Deploy the API Backend First
+### Step 1: Prepare API Backend
 
-**⚠️ IMPORTANT**: Vercel only hosts the frontend. You need to deploy the API separately.
+Vercel is ideal for the frontend. For the API you have two options:
 
-**Quick Option - Railway (Recommended)**:
-1. Go to https://railway.app and sign in with GitHub
-2. Create new project → Deploy from GitHub repo → Select LeboLink
-3. Add MongoDB database (Railway provides this automatically)
-4. Add service from repo:
-   - Root Directory: `apps/api`
-   - Build Command: `npm install && npm run build`
-   - Start Command: `node apps/api/dist/src/main.js`
-5. Add environment variables:
-   ```
-   NODE_ENV=production
-   PORT=3001
-   JWT_SECRET=<generate-a-long-random-string>
-   MONGODB_URI=<railway-provides-this>
-   ```
-6. Deploy and copy the API URL (e.g., `https://lebolink-api-production.up.railway.app`)
+1. Deploy the API as a Vercel Serverless project (requires converting the NestJS app to a serverless-compatible handler).
+   - Use a serverless adapter for NestJS (e.g., `@vendia/serverless-express` or `@nestjs/platform-serverless`) and export a handler.
+   - Configure a Vercel project that builds the API and exposes serverless endpoints.
+   - Set `NEXT_PUBLIC_API_BASE_URL` to the Vercel API URL.
 
-**Alternative - Render**: See full instructions in DEPLOYMENT.md
+2. Keep the existing NestJS server and deploy it to a Node-friendly host (Render, Fly, etc.), then point `NEXT_PUBLIC_API_BASE_URL` to that URL.
+
+If you prefer minimal refactor, choose option 2. If you want everything under Vercel and can refactor, choose option 1.
 
 ---
 
@@ -64,9 +54,9 @@ This guide will help you deploy LeboLink to Vercel in under 10 minutes.
    
    | Name | Value |
    |------|-------|
-   | `NEXT_PUBLIC_API_BASE_URL` | The Railway API URL from Step 1 |
+   | `NEXT_PUBLIC_API_BASE_URL` | The API URL from Step 1 |
    
-   Example: `https://lebolink-api-production.up.railway.app`
+   Example: `https://api.yourdomain.com`
 
 5. **Deploy**
    - Click "Deploy"
@@ -80,7 +70,7 @@ This guide will help you deploy LeboLink to Vercel in under 10 minutes.
 After successful deployment:
 
 - **Frontend URL**: Check Vercel dashboard (e.g., `https://lebolink.vercel.app`)
-- **API URL**: The Railway URL from Step 1
+ - **API URL**: The API host URL from Step 1
 - **Admin Login**: Use the credentials from your seeded admin account
 
 ---
@@ -114,7 +104,7 @@ Once connected:
    - Open browser DevTools → Console
    - Login to the app
    - Check Network tab for API calls
-   - Should see calls to your Railway API URL
+   - Should see calls to your API host URL
 
 3. **Test Login Flow**:
    - Go to `/admin-login`
@@ -137,8 +127,8 @@ Once connected:
 
 **Error**: "Network error" or "Failed to fetch"
 - **Fix**: Verify `NEXT_PUBLIC_API_BASE_URL` environment variable is set correctly
-- **Fix**: Check Railway API is running (visit API URL in browser)
-- **Fix**: Ensure Railway API has CORS enabled for Vercel domain
+ - **Fix**: Check your API host is running (visit API URL in browser)
+ - **Fix**: Ensure your API has CORS enabled for the Vercel domain
 
 ### Environment Variables Not Working
 
@@ -155,10 +145,10 @@ Once connected:
 - Check analytics
 - Monitor performance
 
-### Railway Dashboard
-- Monitor API logs
-- Check resource usage
-- View database metrics
+### API Host Dashboard
+ - Monitor API logs on your chosen platform
+ - Check resource usage
+ - View database metrics
 
 ---
 
@@ -178,7 +168,7 @@ Before going to production:
 
 ## 💡 Next Steps
 
-1. **Set up MongoDB Atlas** for production database (Railway free tier has limits)
+1. **Set up MongoDB Atlas** for production database (Vercel / API host free tier has limits)
 2. **Configure Monitoring** with Sentry or LogRocket
 3. **Add Analytics** with Vercel Analytics
 4. **Set up Backups** for MongoDB
@@ -190,7 +180,7 @@ Before going to production:
 
 - [Full Deployment Guide](./DEPLOYMENT.md) - All deployment options
 - [Vercel Documentation](https://vercel.com/docs)
-- [Railway Documentation](https://docs.railway.app)
+- [API Hosting Docs](https://vercel.com/docs)
 - [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
 
 ---
